@@ -100,12 +100,17 @@ public class TeiDataDetailActivity extends ActivityGlobalAbstract implements Tei
         supportStartPostponedEnterTransition();
 
 
+        initForm();
+
+
+    }
+
+    private void initForm() {
         getSupportFragmentManager().beginTransaction()
                 .replace(R.id.dataFragment, FormFragment.newInstance(
-                        FormViewArguments.createForEnrollment(program.getCurrentEnrollment().uid()), true,
+                        FormViewArguments.createForEnrollment(dashboardProgramModel.getCurrentEnrollment().uid()), true,
                         false))
                 .commit();
-
     }
 
 
@@ -116,6 +121,7 @@ public class TeiDataDetailActivity extends ActivityGlobalAbstract implements Tei
             Bindings.setEnrolmentText(binding.programLockText, enrollmentStatus);
             binding.setEnrollmentStatus(enrollmentStatus);
             binding.executePendingBindings();
+            initForm();
         };
     }
 
@@ -128,7 +134,10 @@ public class TeiDataDetailActivity extends ActivityGlobalAbstract implements Tei
     @Override
     public void onBackPressed() {
         setResult(RESULT_OK);
-        super.onBackPressed();
+        if (getSupportFragmentManager().getFragments().get(0) instanceof FormFragment)
+            ((FormFragment) getSupportFragmentManager().getFragments().get(0)).onBackPressed(false);
+        else
+            finish();
     }
 
     @Override

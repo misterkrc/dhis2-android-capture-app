@@ -1,4 +1,5 @@
 apply plugin: 'com.android.application'
+apply plugin: 'com.google.firebase.firebase-perf'
 apply plugin: 'kotlin-android'
 apply plugin: 'io.fabric'
 
@@ -44,7 +45,7 @@ android {
         vectorDrawables.useSupportLibrary = true
         multiDexEnabled true
 
-        setProperty("archivesBaseName", "dhis2-v" + versionName)
+        setProperty("archivesBaseName", "dhis2-v" + versions.vName)
 
         buildConfigField "String", "SDK_VERSION", "\"" + libraries.dhis2sdk + "\""
     }
@@ -103,14 +104,12 @@ android {
     productFlavors {
         dhis {
             applicationId "com.dhis2"
-            archivesBaseName = "dhis"
             dimension "default"
             versionCode versions.vCode
             versionName versions.vName
         }
         psi {
             applicationId "org.dhis2.psi"
-            archivesBaseName = "PSI"
             dimension "default"
             versionCode 2
             versionName "1.1.0"
@@ -152,8 +151,9 @@ sonarqube {
 
 dependencies {
 
+//    implementation project(":core")
     implementation project(":customFab")
-//    implementation project(":dhis2-rule-engine")
+    implementation project(":dhis2-rule-engine")
     implementation project(":viewpagerdotsindicator")
 
     //region SUPPORT LIBRARIES
@@ -172,12 +172,7 @@ dependencies {
         exclude group: "org.hisp.dhis", module: "core-rules"
     }
 
-    /* implementation("org.hisp.dhis:android-rules:${libraries.dhis2sdk}") {
-         exclude group: "com.google.code.findbugs", module: "jsr305"
-         exclude group: "org.hisp.dhis", module: "core-rules"
-     }*/
-
-    implementation "org.hisp.dhis.rules:rule-engine:${libraries.ruleEngine}"
+    //implementation "org.hisp.dhis.rules:rule-engine:${libraries.ruleEngine}"
     //endregion
 
     //region UI LIBRARIES
@@ -197,6 +192,8 @@ dependencies {
     implementation "io.reactivex.rxjava2:rxandroid:${libraries.rxandroid}"
     implementation "io.reactivex.rxjava2:rxjava:${libraries.rxjava}"
     implementation "com.github.akarnokd:rxjava2-interop:${libraries.rxjavainteroperop}"
+    implementation 'io.reactivex.rxjava2:rxkotlin:2.3.0'
+
     //rxbinding
     implementation "com.jakewharton.rxbinding2:rxbinding:${libraries.rxbindings}"
     implementation "com.jakewharton.rxbinding2:rxbinding-appcompat-v7:${libraries.rxbindings}"
@@ -204,7 +201,7 @@ dependencies {
 
     //region DAGGER
     implementation "com.google.dagger:dagger:${libraries.dagger}"
-    implementation 'androidx.constraintlayout:constraintlayout:2.0.0-alpha3'
+//    implementation 'androidx.constraintlayout:constraintlayout:2.0.0-alpha3'
     kapt "com.google.dagger:dagger-compiler:${libraries.dagger}"
     //endregion
 
@@ -239,6 +236,7 @@ dependencies {
 
     //GSON
     implementation 'com.google.code.gson:gson:2.8.2'
+//    implementation 'com.squareup.retrofit2:converter-gson:2.3.0'
 
     //JOB SCHEDULER
     implementation("android.arch.work:work-runtime:1.0.0-alpha10") {
@@ -254,15 +252,15 @@ dependencies {
     //FIREBASE
     implementation 'com.google.firebase:firebase-core:16.0.7'
 
-
     //Test
 
     implementation fileTree(dir: 'libs', include: ['*.jar'])
-    androidTestImplementation('androidx.test.espresso:espresso-core:3.1.1', {
+    androidTestImplementation'androidx.test.espresso:espresso-core:3.1.1'
+  /*  androidTestImplementation('androidx.test.espresso:espresso-core:3.1.1', {
         exclude group: 'com.android.support', module: 'support-annotations'
         exclude group: 'com.google.code.findbugs'
 
-    })
+    })*/
     androidTestImplementation 'androidx.test.ext:junit:1.1.0'
 
 
@@ -271,6 +269,7 @@ dependencies {
     testImplementation 'org.robolectric:robolectric:4.1'
     testImplementation "org.robolectric:shadows-multidex:4.0.1"
     testImplementation group: 'org.mockito', name: 'mockito-all', version: '1.8.4'
+    testImplementation 'com.google.truth:truth:0.43'
 
     implementation 'com.facebook.stetho:stetho:1.5.0'
     implementation 'com.facebook.stetho:stetho-okhttp3:1.5.0'
@@ -308,6 +307,9 @@ dependencies {
     implementation "com.github.pwittchen:rxbiometric:0.1.0"
 
     implementation "de.adorsys.android:securestoragelibrary:${libraries.latestSecureStorageVersion}"
+
+    implementation 'com.google.firebase:firebase-perf:16.2.3'
+
 }
 
 apply plugin: 'kotlin-kapt'

@@ -16,6 +16,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
 
+import com.google.android.material.snackbar.Snackbar;
 import com.jakewharton.rxbinding2.widget.RxTextView;
 
 import org.dhis2.BuildConfig;
@@ -28,6 +29,7 @@ import org.dhis2.utils.Constants;
 import org.dhis2.utils.HelpManager;
 import org.dhis2.utils.SyncUtils;
 import org.hisp.dhis.android.core.maintenance.D2Error;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -82,7 +84,7 @@ public class SyncManagerFragment extends FragmentGlobalAbstract implements SyncM
         @Override
         public void onReceive(Context context, Intent intent) {
             if (intent.getAction() != null && intent.getAction().equals("action_sync")) {
-                if (SyncUtils.isSyncRunning() && getAbstractActivity().progressBar.getVisibility() == View.VISIBLE) {
+                if (SyncUtils.isSyncRunning() && getAbstractActivity().getProgressBar().getVisibility() == View.VISIBLE) {
                     binding.buttonSyncData.setEnabled(false);
                     binding.buttonSyncMeta.setEnabled(false);
                 } else {
@@ -97,11 +99,11 @@ public class SyncManagerFragment extends FragmentGlobalAbstract implements SyncM
     };
 
     @Override
-    public void onAttach(Context context) {
+    public void onAttach(@NotNull Context context) {
         super.onAttach(context);
         this.context = context;
         ((Components) context.getApplicationContext()).userComponent()
-                .plus(new SyncManagerModule(this.getContext())).inject(this);
+                .plus(new SyncManagerModule()).inject(this);
     }
 
     @Override
@@ -124,6 +126,7 @@ public class SyncManagerFragment extends FragmentGlobalAbstract implements SyncM
 
             @Override
             public void onNothingSelected(AdapterView<?> adapterView) {
+                /*NO USE*/
             }
         });
         binding.metadataPeriods.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
@@ -135,7 +138,7 @@ public class SyncManagerFragment extends FragmentGlobalAbstract implements SyncM
 
             @Override
             public void onNothingSelected(AdapterView<?> adapterView) {
-
+                /*NO USE*/
             }
         });
 
@@ -202,7 +205,7 @@ public class SyncManagerFragment extends FragmentGlobalAbstract implements SyncM
         };
     }
 
-    public void setLastSyncDate() {
+    private void setLastSyncDate() {
         boolean dataStatus = prefs.getBoolean(Constants.LAST_DATA_SYNC_STATUS, true);
         boolean metaStatus = prefs.getBoolean(Constants.LAST_META_SYNC_STATUS, true);
 
@@ -309,10 +312,20 @@ public class SyncManagerFragment extends FragmentGlobalAbstract implements SyncM
         new AlertDialog.Builder(context, R.style.CustomDialog)
                 .setTitle(getString(R.string.wipe_data))
                 .setMessage(getString(R.string.wipe_data_meesage))
-                .setPositiveButton(getString(R.string.wipe_data_ok), (dialog, which) -> {
-                    showDeleteProgress();
-                })
+                .setView(R.layout.warning_layout)
+                .setPositiveButton(getString(R.string.wipe_data_ok), (dialog, which) -> showDeleteProgress())
                 .setNegativeButton(getString(R.string.wipe_data_no), (dialog, which) -> dialog.dismiss())
+                .show();
+    }
+
+    @Override
+    public void deleteLocalData() {
+        new AlertDialog.Builder(context, R.style.CustomDialog)
+                .setTitle(getString(R.string.delete_local_data))
+                .setMessage(getString(R.string.delete_local_data_message))
+                .setView(R.layout.warning_layout)
+                .setPositiveButton(getString(R.string.action_accept), (dialog, which) -> presenter.deleteLocalData())
+                .setNegativeButton(getString(R.string.cancel), (dialog, which) -> dialog.dismiss())
                 .show();
     }
 
@@ -338,69 +351,109 @@ public class SyncManagerFragment extends FragmentGlobalAbstract implements SyncM
 
     @Override
     public void showTutorial() {
-        SharedPreferences prefs = getAbstracContext().getSharedPreferences(
-                Constants.SHARE_PREFS, Context.MODE_PRIVATE);
-        NestedScrollView scrollView = getAbstractActivity().findViewById(R.id.scrollView);
-        new Handler().postDelayed(() -> {
-            FancyShowCaseView tuto1 = new FancyShowCaseView.Builder(getAbstractActivity())
-                    .focusOn(getAbstractActivity().findViewById(R.id.dataPeriods))
-                    .title(getString(R.string.tuto_settings_1))
-                    .closeOnTouch(true)
-                    .focusShape(FocusShape.ROUNDED_RECTANGLE)
-                    .dismissListener(new DismissListener() {
-                        @Override
-                        public void onDismiss(String id) {
-                            if (scrollView != null) {
-                                scrollView.scrollTo((int) getAbstractActivity().findViewById(R.id.metadataPeriods).getX(), (int) getAbstractActivity().findViewById(R.id.metadataPeriods).getY());
+        if (isAdded() && getAbstractActivity() != null && getContext() != null) {
+            NestedScrollView scrollView = getAbstractActivity().findViewById(R.id.scrollView);
+            new Handler().postDelayed(() -> {
+                FancyShowCaseView tuto1 = new FancyShowCaseView.Builder(getAbstractActivity())
+                        .focusOn(getAbstractActivity().findViewById(R.id.dataPeriods))
+                        .title(getString(R.string.tuto_settings_1))
+                        .closeOnTouch(true)
+                        .focusShape(FocusShape.ROUNDED_RECTANGLE)
+                        .build();
+
+                FancyShowCaseView tuto2 = new FancyShowCaseView.Builder(getAbstractActivity())
+                        .focusOn(getAbstractActivity().findViewById(R.id.metadataPeriods))
+                        .title(getString(R.string.tuto_settings_2))
+                        .focusShape(FocusShape.ROUNDED_RECTANGLE)
+                        .closeOnTouch(true)
+                        .build();
+
+                FancyShowCaseView tuto3 = new FancyShowCaseView.Builder(getAbstractActivity())
+                        .focusOn(getAbstractActivity().findViewById(R.id.capacityLayout))
+                        .title(getString(R.string.tuto_settings_3))
+                        .focusShape(FocusShape.ROUNDED_RECTANGLE)
+                        .closeOnTouch(true)
+                        .dismissListener(new DismissListener() {
+                            @Override
+                            public void onDismiss(String id) {
+                                if (scrollView != null) {
+                                    scrollView.scrollTo((int) getAbstractActivity().findViewById(R.id.reservedValue).getX(), (int) getAbstractActivity().findViewById(R.id.reservedValue).getY());
+                                }
                             }
-                        }
 
-                        @Override
-                        public void onSkipped(String id) {
-                            // unused
-                        }
-                    })
-                    .build();
-            FancyShowCaseView tuto2 = new FancyShowCaseView.Builder(getAbstractActivity())
-                    .focusOn(getAbstractActivity().findViewById(R.id.metadataPeriods))
-                    .title(getString(R.string.tuto_settings_2))
-                    .focusShape(FocusShape.ROUNDED_RECTANGLE)
-                    .closeOnTouch(true)
-                    .build();
-            FancyShowCaseView tuto3 = new FancyShowCaseView.Builder(getAbstractActivity())
-                    .focusOn(getAbstractActivity().findViewById(R.id.capacityLayout))
-                    .title(getString(R.string.tuto_settings_3))
-                    .focusShape(FocusShape.ROUNDED_RECTANGLE)
-                    .closeOnTouch(true)
-                    .build();
+                            @Override
+                            public void onSkipped(String id) {
+                                // unused
+                            }
+                        })
+                        .build();
 
-            FancyShowCaseView tuto4 = new FancyShowCaseView.Builder(getAbstractActivity())
-                    .focusOn(getAbstractActivity().findViewById(R.id.wipeData))
-                    .title(getString(R.string.tuto_settings_4))
-                    .closeOnTouch(true)
-                    .focusShape(FocusShape.ROUNDED_RECTANGLE)
-                    .build();
+                FancyShowCaseView tuto4 = new FancyShowCaseView.Builder(getAbstractActivity())
+                        .focusOn(getAbstractActivity().findViewById(R.id.reservedValue))
+                        .title(getString(R.string.tuto_settings_reserved))
+                        .focusShape(FocusShape.ROUNDED_RECTANGLE)
+                        .closeOnTouch(true)
+                        .build();
+
+                FancyShowCaseView tuto5 = new FancyShowCaseView.Builder(getAbstractActivity())
+                        .focusOn(getAbstractActivity().findViewById(R.id.buttonSyncError))
+                        .title(getString(R.string.tuto_settings_errors))
+                        .focusShape(FocusShape.ROUNDED_RECTANGLE)
+                        .closeOnTouch(true)
+                        .build();
+
+                FancyShowCaseView tuto6 = new FancyShowCaseView.Builder(getAbstractActivity())
+                        .focusOn(getAbstractActivity().findViewById(R.id.buttonDeleteLocalData))
+                        .title(getString(R.string.tuto_settings_reset))
+                        .focusShape(FocusShape.ROUNDED_RECTANGLE)
+                        .closeOnTouch(true)
+                        .build();
+
+                FancyShowCaseView tuto7 = new FancyShowCaseView.Builder(getAbstractActivity())
+                        .focusOn(getAbstractActivity().findViewById(R.id.wipeData))
+                        .title(getString(R.string.tuto_settings_4))
+                        .closeOnTouch(true)
+                        .focusShape(FocusShape.ROUNDED_RECTANGLE)
+                        .build();
 
 
-            ArrayList<FancyShowCaseView> steps = new ArrayList<>();
-            steps.add(tuto1);
-            steps.add(tuto2);
-            steps.add(tuto3);
-            steps.add(tuto4);
+                ArrayList<FancyShowCaseView> steps = new ArrayList<>();
+                steps.add(tuto1);
+                steps.add(tuto2);
+                steps.add(tuto3);
+                steps.add(tuto4);
+                steps.add(tuto5);
+                steps.add(tuto6);
+                steps.add(tuto7);
 
-            HelpManager.getInstance().setScreenHelp(getClass().getName(), steps);
+                HelpManager.getInstance().setScreenHelp(getClass().getName(), steps);
+                HelpManager.getInstance().setScroll(scrollView);
 
-            if (!prefs.getBoolean("TUTO_SETTINGS_SHOWN", false) && !BuildConfig.DEBUG) {
-                HelpManager.getInstance().showHelp();/* getAbstractActivity().fancyShowCaseQueue.show();*/
-                prefs.edit().putBoolean("TUTO_SETTINGS_SHOWN", true).apply();
-            }
+                if (prefs != null && !prefs.getBoolean("TUTO_SETTINGS_SHOWN", false) && !BuildConfig.DEBUG) {
+                    HelpManager.getInstance().showHelp();
+                    prefs.edit().putBoolean("TUTO_SETTINGS_SHOWN", true).apply();
+                }
 
-        }, 500);
+            }, 500);
+        }
     }
 
     @Override
     public void showSyncErrors(List<D2Error> data) {
-        if (!ErrorDialog.newInstace().isAdded())
-            ErrorDialog.newInstace().setData(data).show(getChildFragmentManager().beginTransaction(), "ErrorDialog");
+        new ErrorDialog().setData(data).show(getChildFragmentManager().beginTransaction(), ErrorDialog.TAG);
+    }
+
+    @Override
+    public void showLocalDataDeleted(boolean error) {
+
+        if(!error) {
+            binding.eventCurrentData.setText(String.valueOf(0));
+            binding.teiCurrentData.setText(String.valueOf(0));
+        }
+
+        Snackbar deleteDataSnack = Snackbar.make(binding.getRoot(),
+                error ? R.string.delete_local_data_error : R.string.delete_local_data_done,
+                Snackbar.LENGTH_SHORT);
+        deleteDataSnack.show();
     }
 }

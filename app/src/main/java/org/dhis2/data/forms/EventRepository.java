@@ -2,8 +2,6 @@ package org.dhis2.data.forms;
 
 import android.content.ContentValues;
 import android.database.Cursor;
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 
 import com.google.android.gms.maps.model.LatLng;
 import com.squareup.sqlbrite2.BriteDatabase;
@@ -13,14 +11,17 @@ import org.dhis2.data.forms.dataentry.fields.FieldViewModelFactoryImpl;
 import org.dhis2.data.tuples.Pair;
 import org.dhis2.data.tuples.Trio;
 import org.dhis2.utils.DateUtils;
+import org.hisp.dhis.android.core.D2;
 import org.hisp.dhis.android.core.category.CategoryComboModel;
 import org.hisp.dhis.android.core.category.CategoryOptionComboModel;
+import org.hisp.dhis.android.core.common.ObjectStyleModel;
 import org.hisp.dhis.android.core.common.State;
 import org.hisp.dhis.android.core.common.ValueType;
 import org.hisp.dhis.android.core.common.ValueTypeDeviceRenderingModel;
 import org.hisp.dhis.android.core.enrollment.EnrollmentModel;
 import org.hisp.dhis.android.core.event.EventModel;
 import org.hisp.dhis.android.core.event.EventStatus;
+import org.hisp.dhis.android.core.organisationunit.OrganisationUnit;
 import org.hisp.dhis.android.core.program.ProgramModel;
 import org.hisp.dhis.android.core.program.ProgramStageModel;
 import org.hisp.dhis.android.core.program.ProgramStageSectionModel;
@@ -37,10 +38,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import io.reactivex.BackpressureStrategy;
 import io.reactivex.Flowable;
 import io.reactivex.Observable;
 import io.reactivex.functions.Consumer;
+import timber.log.Timber;
 
 import static android.text.TextUtils.isEmpty;
 
@@ -134,7 +138,8 @@ public class EventRepository implements FormRepository {
             "        ProgramStageSectionDataElementLink.sortOrder AS sectionOrder\n" +
             "      FROM ProgramStageDataElement\n" +
             "        INNER JOIN DataElement ON DataElement.uid = ProgramStageDataElement.dataElement\n" +
-            "        LEFT JOIN ProgramStageSectionDataElementLink ON ProgramStageSectionDataElementLink.dataElement = ProgramStageDataElement.dataElement\n" +
+            "        LEFT JOIN ProgramStageSection ON ProgramStageSection.programStage = ProgramStageDataElement.programStage\n" +
+            "        LEFT JOIN ProgramStageSectionDataElementLink ON ProgramStageSectionDataElementLink.programStageSection = ProgramStageSection.uid AND ProgramStageSectionDataElementLink.dataElement = DataElement.uid\n" +
             "    ) AS Field ON (Field.stage = Event.programStage)\n" +
             "  LEFT OUTER JOIN TrackedEntityDataValue AS Value ON (\n" +
             "    Value.event = Event.uid AND Value.dataElement = Field.id\n" +
@@ -152,19 +157,25 @@ public class EventRepository implements FormRepository {
     private final BriteDatabase briteDatabase;
 
     @NonNull
-    private final Flowable<RuleEngine> cachedRuleEngineFlowable;
+    private Flowable<RuleEngine> cachedRuleEngineFlowable;
 
     @Nullable
     private final String eventUid;
+    private final D2 d2;
+    private final RulesRepository rulesRepository;
+    private final RuleExpressionEvaluator evaluator;
     private String programUid;
 
     public EventRepository(@NonNull BriteDatabase briteDatabase,
                            @NonNull RuleExpressionEvaluator evaluator,
                            @NonNull RulesRepository rulesRepository,
-                           @Nullable String eventUid) {
+                           @Nullable String eventUid,
+                           @NonNull D2 d2) {
+        this.d2 = d2;
         this.briteDatabase = briteDatabase;
         this.eventUid = eventUid;
-
+        this.rulesRepository = rulesRepository;
+        this.evaluator = evaluator;
         // We don't want to rebuild RuleEngine on each request, since metadata of
         // the event is not changing throughout lifecycle of FormComponent.
         this.cachedRuleEngineFlowable = eventProgram()
@@ -173,11 +184,41 @@ public class EventRepository implements FormRepository {
                         rulesRepository.ruleVariables(program),
                         rulesRepository.otherEvents(eventUid),
                         rulesRepository.enrollment(eventUid),
-                        (rules, variables, events, enrollment) -> {
+                        rulesRepository.queryConstants(),
+                        (rules, variables, events, enrollment, constants) -> {
 
                             RuleEngine.Builder builder = RuleEngineContext.builder(evaluator)
                                     .rules(rules)
                                     .ruleVariables(variables)
+                                    .constantsValue(constants)
+                                    .calculatedValueMap(new HashMap<>())
+                                    .supplementaryData(new HashMap<>())
+                                    .build().toEngineBuilder();
+                            builder.triggerEnvironment(TriggerEnvironment.ANDROIDCLIENT);
+                            builder.events(events);
+                            if (!isEmpty(enrollment.enrollment()))
+                                builder.enrollment(enrollment);
+                            return builder.build();
+                        }))
+                .cacheWithInitialCapacity(1);
+    }
+
+
+    @Override
+    public Flowable<RuleEngine> restartRuleEngine() {
+        return this.cachedRuleEngineFlowable = eventProgram()
+                .switchMap(program -> Flowable.zip(
+                        rulesRepository.rulesNew(program),
+                        rulesRepository.ruleVariables(program),
+                        rulesRepository.otherEvents(eventUid),
+                        rulesRepository.enrollment(eventUid),
+                        rulesRepository.queryConstants(),
+                        (rules, variables, events, enrollment, constants) -> {
+
+                            RuleEngine.Builder builder = RuleEngineContext.builder(evaluator)
+                                    .rules(rules)
+                                    .ruleVariables(variables)
+                                    .constantsValue(constants)
                                     .calculatedValueMap(new HashMap<>())
                                     .supplementaryData(new HashMap<>())
                                     .build().toEngineBuilder();
@@ -231,6 +272,7 @@ public class EventRepository implements FormRepository {
                 .mapToOne(ProgramModel::create)
                 .toFlowable(BackpressureStrategy.LATEST);
     }
+
 
     @NonNull
     @Override
@@ -304,13 +346,13 @@ public class EventRepository implements FormRepository {
         };
     }
 
-    @NonNull
+    @Nullable
     @Override
     public Observable<Trio<String, String, String>> useFirstStageDuringRegistration() {
         return Observable.just(null);
     }
 
-    @NonNull
+    @Nullable
     @Override
     public Observable<String> autoGenerateEvents(String enrollmentUid) {
         return null;
@@ -398,6 +440,12 @@ public class EventRepository implements FormRepository {
                 .mapToOne(cursor -> cursor.getInt(0) == 1);
     }
 
+    @Override
+    public Observable<OrganisationUnit> getOrgUnitDates() {
+        return Observable.defer(() -> Observable.just(d2.eventModule().events.uid(eventUid).get()))
+                .switchMap(event -> Observable.just(d2.organisationUnitModule().organisationUnits.uid(event.organisationUnit()).get()));
+    }
+
     @NonNull
     private FieldViewModel transform(@NonNull Cursor cursor) {
         String uid = cursor.getString(0);
@@ -416,11 +464,20 @@ public class EventRepository implements FormRepository {
             dataValue = optionCodeName;
         }
 
+        int optionCount = 0;
+        try (Cursor countCursor = briteDatabase.query("SELECT COUNT (uid) FROM Option WHERE optionSet = ?", optionSetUid)) {
+            if (countCursor != null) {
+                if (countCursor.moveToFirst())
+                    optionCount = countCursor.getInt(0);
+            }
+        } catch (Exception e) {
+            Timber.e(e);
+        }
         ValueTypeDeviceRenderingModel fieldRendering = null;
-        Cursor rendering = briteDatabase.query("SELECT * FROM ValueTypeDeviceRendering WHERE uid = ?", uid);
-        if(rendering!=null && rendering.moveToFirst()){
-            fieldRendering = ValueTypeDeviceRenderingModel.create(cursor);
-            rendering.close();
+        try (Cursor rendering = briteDatabase.query("SELECT * FROM ValueTypeDeviceRendering WHERE uid = ?", uid)) {
+            if (rendering != null && rendering.moveToFirst()) {
+                fieldRendering = ValueTypeDeviceRenderingModel.create(rendering);
+            }
         }
 
         FieldViewModelFactoryImpl fieldFactory = new FieldViewModelFactoryImpl(
@@ -433,10 +490,14 @@ public class EventRepository implements FormRepository {
                 "",
                 "",
                 "");
-
+        ObjectStyleModel objectStyle = ObjectStyleModel.builder().build();
+        try (Cursor objStyleCursor = briteDatabase.query("SELECT * FROM ObjectStyle WHERE uid = ?", uid)) {
+            if (objStyleCursor.moveToFirst())
+                objectStyle = ObjectStyleModel.create(objStyleCursor);
+        }
         return fieldFactory.create(uid, isEmpty(formLabel) ? label : formLabel, valueType,
                 mandatory, optionSetUid, dataValue, section, allowFutureDates,
-                status == EventStatus.ACTIVE, null, description, fieldRendering);
+                status == EventStatus.ACTIVE, null, description, fieldRendering, optionCount, objectStyle);
     }
 
     @NonNull

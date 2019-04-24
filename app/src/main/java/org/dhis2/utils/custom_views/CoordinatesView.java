@@ -14,6 +14,7 @@ import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.material.textfield.TextInputEditText;
+import com.google.android.material.textfield.TextInputLayout;
 
 import org.dhis2.R;
 import org.dhis2.data.forms.dataentry.fields.RowAction;
@@ -38,6 +39,7 @@ public class CoordinatesView extends FieldLayout implements View.OnClickListener
 
     private ViewDataBinding binding;
     private TextInputEditText latLong;
+    private TextInputLayout inputLayout;
     private FusedLocationProviderClient mFusedLocationClient;
     private LocationRequest locationRequest;
     private LocationCallback locationCallback;
@@ -79,6 +81,7 @@ public class CoordinatesView extends FieldLayout implements View.OnClickListener
         else
             binding = DataBindingUtil.inflate(inflater, R.layout.form_coordinates_accent, this, true);
 
+        inputLayout = findViewById(R.id.inputLayout);
         latLong = findViewById(R.id.latlong);
 
         ImageButton position = findViewById(R.id.location1);
@@ -115,8 +118,14 @@ public class CoordinatesView extends FieldLayout implements View.OnClickListener
         this.latLong.setText(String.format(Locale.getDefault(), "%.5f, %.5f", Double.valueOf(latLongValue[0]), Double.valueOf(latLongValue[1])));
     }
 
-    public void setWargingOrError(String msg) {
-        this.latLong.setError(msg);
+    public void setWarning(String msg) {
+        inputLayout.setErrorTextAppearance(R.style.warning_appearance);
+        inputLayout.setError(msg);
+    }
+
+    public void setError(String msg) {
+        inputLayout.setErrorTextAppearance(R.style.error_appearance);
+        inputLayout.setError(msg);
     }
 
     @Override

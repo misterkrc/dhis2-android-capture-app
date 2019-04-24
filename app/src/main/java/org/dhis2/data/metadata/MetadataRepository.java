@@ -1,7 +1,9 @@
 package org.dhis2.data.metadata;
 
 import org.dhis2.data.tuples.Pair;
+import org.hisp.dhis.android.core.category.CategoryCombo;
 import org.hisp.dhis.android.core.category.CategoryComboModel;
+import org.hisp.dhis.android.core.category.CategoryModel;
 import org.hisp.dhis.android.core.category.CategoryOptionComboModel;
 import org.hisp.dhis.android.core.common.ObjectStyleModel;
 import org.hisp.dhis.android.core.enrollment.EnrollmentModel;
@@ -16,6 +18,7 @@ import org.hisp.dhis.android.core.trackedentity.TrackedEntityInstanceModel;
 import org.hisp.dhis.android.core.trackedentity.TrackedEntityTypeModel;
 
 import java.util.List;
+import java.util.Map;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -51,7 +54,11 @@ public interface MetadataRepository {
 
     Observable<List<CategoryOptionComboModel>> getCategoryComboOptions(String categoryComboId);
 
-    void saveCatOption(String eventUid, CategoryOptionComboModel selectedOption);
+    Observable<CategoryCombo> catComboForProgram(String programUid);
+
+    Observable<CategoryModel> getCategoryFromCategoryCombo(String categoryComboId);
+
+    void saveCatOption(String eventUid, String catOptionComboUid);
 
     /*CATEGORY COMBO*/
 
@@ -106,9 +113,11 @@ public interface MetadataRepository {
 
     Observable<String> getServerUrl();
 
-    Observable<List<D2Error>> getSyncErrors();
+    List<D2Error> getSyncErrors();
 
-    Observable<List<OptionModel>> searchOptions(String text, String idOptionSet, int page);
+    Observable<List<OptionModel>> searchOptions(String text, String idOptionSet, int page, List<String> optionsToHide, List<String> optionsGroupsToHide);
 
-    int optionSetSize(String optionSet);
+    Observable<Map<String, ObjectStyleModel>> getObjectStylesForPrograms(List<ProgramModel> enrollmentProgramModels);
+
+    Flowable<ProgramStageModel> programStageForEvent(String eventId);
 }

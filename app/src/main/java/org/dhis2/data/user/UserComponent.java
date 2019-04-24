@@ -17,14 +17,14 @@ import org.dhis2.usescases.datasets.datasetDetail.DataSetDetailComponent;
 import org.dhis2.usescases.datasets.datasetDetail.DataSetDetailModule;
 import org.dhis2.usescases.datasets.datasetInitial.DataSetInitialComponent;
 import org.dhis2.usescases.datasets.datasetInitial.DataSetInitialModule;
+import org.dhis2.usescases.enrollment.EnrollmentComponent;
+import org.dhis2.usescases.enrollment.EnrollmentModule;
 import org.dhis2.usescases.eventsWithoutRegistration.eventCapture.EventCaptureComponent;
 import org.dhis2.usescases.eventsWithoutRegistration.eventCapture.EventCaptureModule;
 import org.dhis2.usescases.eventsWithoutRegistration.eventInitial.EventInitialComponent;
 import org.dhis2.usescases.eventsWithoutRegistration.eventInitial.EventInitialModule;
 import org.dhis2.usescases.eventsWithoutRegistration.eventSummary.EventSummaryComponent;
 import org.dhis2.usescases.eventsWithoutRegistration.eventSummary.EventSummaryModule;
-import org.dhis2.usescases.jira.JiraComponent;
-import org.dhis2.usescases.jira.JiraModule;
 import org.dhis2.usescases.main.MainComponent;
 import org.dhis2.usescases.main.MainModule;
 import org.dhis2.usescases.main.program.ProgramComponent;
@@ -53,8 +53,6 @@ import org.dhis2.usescases.teiDashboard.teiDataDetail.TeiDataDetailComponent;
 import org.dhis2.usescases.teiDashboard.teiDataDetail.TeiDataDetailModule;
 import org.dhis2.usescases.teiDashboard.teiProgramList.TeiProgramListComponent;
 import org.dhis2.usescases.teiDashboard.teiProgramList.TeiProgramListModule;
-
-import javax.annotation.Nonnull;
 
 import androidx.annotation.NonNull;
 import dagger.Subcomponent;
@@ -114,9 +112,6 @@ public interface UserComponent {
     QrReaderComponent plus(QrReaderModule qrReaderModule);
 
     @NonNull
-    JiraComponent plus(JiraModule jiraModule);
-
-    @NonNull
     AboutComponent plus(AboutModule aboutModule);
 
     @NonNull
@@ -131,10 +126,10 @@ public interface UserComponent {
     @NonNull
     ReservedValueComponent plus(ReservedValueModule reservedValueModule);
 
-    @Nonnull
+    @NonNull
     SyncDataWorkerComponent plus(SyncDataWorkerModule syncDataWorkerModule);
 
-    @Nonnull
+    @NonNull
     SyncMetadataWorkerComponent plus(SyncMetadataWorkerModule syncDataWorkerModule);
 
     @NonNull
@@ -142,4 +137,8 @@ public interface UserComponent {
 
     @NonNull
     EventCaptureComponent plus(EventCaptureModule eventCaptureModule);
+
+    @NonNull
+    EnrollmentComponent plus(EnrollmentModule enrollmentModule);
+
 }

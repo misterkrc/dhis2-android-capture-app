@@ -5,6 +5,7 @@ import androidx.annotation.Nullable;
 
 import org.dhis2.data.forms.dataentry.fields.FieldViewModel;
 import org.dhis2.data.forms.dataentry.fields.FieldViewModelFactoryImpl;
+import org.hisp.dhis.android.core.common.ObjectStyleModel;
 import org.hisp.dhis.android.core.common.ValueType;
 import org.hisp.dhis.rules.models.RuleActionDisplayKeyValuePair;
 import org.hisp.dhis.rules.models.RuleActionDisplayText;
@@ -48,6 +49,11 @@ public class RulesUtilsProviderImplTest {
     RulesActionCallbacks actionCallbacks = new RulesActionCallbacks() {
 
         @Override
+        public void setCalculatedValue(String calculatedValueVariable, String value) {
+
+        }
+
+        @Override
         public void setShowError(@NonNull RuleActionShowError showError, FieldViewModel model) {
 
         }
@@ -81,12 +87,22 @@ public class RulesUtilsProviderImplTest {
         public void setHideProgramStage(String programStageUid) {
 
         }
+
+        @Override
+        public void setOptionToHide(String optionUid) {
+
+        }
+
+        @Override
+        public void setOptionGroupToHide(String optionGroupUid) {
+
+        }
     };
 
     private  void putFieldViewModel(){
         testFieldViewModels.put(testUid, fieldFactory.create(testUid, "label",
                 ValueType.TEXT, false, "optionSet", "test", "section",
-                null, true, null, null, null));
+                null, true, null, null, null,1, ObjectStyleModel.builder().build()));
     }
 
     @Test
@@ -96,7 +112,7 @@ public class RulesUtilsProviderImplTest {
         String testUid = "XXXXXX";
         testFieldViewModels.put(testUid, fieldFactory.create(testUid, "label",
                 ValueType.TEXT, false, "", "test", null,
-                null, true, null, null, null));
+                null, true, null, null, null,null,null));
       
         putFieldViewModel();
 
@@ -141,6 +157,7 @@ public class RulesUtilsProviderImplTest {
         ruleUtils.applyRuleEffects(testFieldViewModels, ruleEffect, actionCallbacks);
 
         assertThat(testFieldViewModels).doesNotContainKey(testUid);
+
     }
 
     @Test

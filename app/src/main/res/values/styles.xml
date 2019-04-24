@@ -65,6 +65,13 @@
         <item name="colorControlActivated">@color/text_black_333</item>
     </style>
 
+    <style name="boxedInputText" parent="Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+        <item name="android:textColorHint">?colorPrimaryLight</item>
+        <item name="colorAccent">?colorPrimaryLight</item>
+        <item name="colorControlNormal">?colorPrimaryLight</item>
+        <item name="colorControlActivated">?colorPrimaryLight</item>
+    </style>
+
     <style name="loginInputTextAccent" parent="Base.Widget.MaterialComponents.TextInputLayout">
         <item name="android:textColorHint">@color/colorAccent</item>
         <item name="colorAccent">@color/colorAccent</item>
@@ -130,7 +137,9 @@
     </style>
 
     <style name="CustomDialog" parent="Base.AlertDialog.AppCompat.Light">
+        <item name="android:windowIsFloating">true</item>
         <item name="android:textColor">?colorPrimary</item>
+        <item name="colorAccent">?colorPrimary</item>
     </style>
 
     <style name="ButtonRoundedGrey" parent="Base.TextAppearance.AppCompat.Button">
@@ -186,6 +195,14 @@
         <item name="android:padding">@dimen/padding_12</item>
         <item name="android:background">?attr/selectableItemBackgroundBorderless</item>
         <item name="android:clickable">true</item>
+    </style>
+
+    <style name="warning_appearance" parent="@android:style/TextAppearance">
+        <item name="android:textColor">@color/warning_color</item>
+    </style>
+
+    <style name="error_appearance" parent="@android:style/TextAppearance">
+        <item name="android:textColor">@color/error_color</item>
     </style>
 
 </resources>

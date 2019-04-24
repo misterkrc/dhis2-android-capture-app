@@ -4,12 +4,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
 import android.os.Looper;
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
-import androidx.multidex.MultiDex;
-import androidx.multidex.MultiDexApplication;
-import androidx.appcompat.app.AppCompatDelegate;
-import android.util.Log;
 
 import com.crashlytics.android.Crashlytics;
 import com.facebook.stetho.Stetho;
@@ -34,15 +28,22 @@ import org.dhis2.usescases.login.LoginComponent;
 import org.dhis2.usescases.login.LoginModule;
 import org.dhis2.usescases.sync.SyncComponent;
 import org.dhis2.usescases.sync.SyncModule;
+import org.dhis2.usescases.teiDashboard.TeiDashboardComponent;
+import org.dhis2.usescases.teiDashboard.TeiDashboardModule;
 import org.dhis2.utils.UtilsModule;
 import org.dhis2.utils.timber.DebugTree;
 import org.dhis2.utils.timber.ReleaseTree;
+import org.hisp.dhis.android.core.configuration.Configuration;
 import org.hisp.dhis.android.core.configuration.ConfigurationManager;
-import org.hisp.dhis.android.core.configuration.ConfigurationModel;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.appcompat.app.AppCompatDelegate;
+import androidx.multidex.MultiDex;
+import androidx.multidex.MultiDexApplication;
 import io.fabric.sdk.android.Fabric;
 import io.reactivex.Scheduler;
 import io.reactivex.android.plugins.RxAndroidPlugins;
@@ -89,12 +90,22 @@ public class App extends MultiDexApplication implements Components {
     @PerActivity
     SyncComponent syncComponent;
 
+    @Nullable
+    @PerActivity
+    private TeiDashboardComponent dashboardComponent;
+
     @Override
     public void onCreate() {
         super.onCreate();
         Timber.plant(BuildConfig.DEBUG ? new DebugTree() : new ReleaseTree());
-        Stetho.initializeWithDefaults(this);
+        long startTime = System.currentTimeMillis();
+        Timber.d("APPLICATION INITIALIZATION");
+        if (BuildConfig.DEBUG) {
+            Stetho.initializeWithDefaults(this);
+            Timber.d("STETHO INITIALIZATION END AT %s", System.currentTimeMillis() - startTime);
+        }
         Fabric.with(this, new Crashlytics());
+        Timber.d("FABRIC INITIALIZATION END AT %s", System.currentTimeMillis() - startTime);
 
         this.instance = this;
 
@@ -102,12 +113,17 @@ public class App extends MultiDexApplication implements Components {
         setUpServerComponent();
         setUpUserComponent();
 
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP)
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
             upgradeSecurityProvider();
+            Timber.d("SECURITY INITIALIZATION END AT %s", System.currentTimeMillis() - startTime);
+        }
 
         Scheduler asyncMainThreadScheduler = AndroidSchedulers.from(Looper.getMainLooper(), true);
         RxAndroidPlugins.setInitMainThreadSchedulerHandler(schedulerCallable -> asyncMainThreadScheduler);
+        Timber.d("RXJAVAPLUGIN INITIALIZATION END AT %s", System.currentTimeMillis() - startTime);
 
+        Timber.d("APPLICATION INITIALIZATION END AT %s", System.currentTimeMillis() - startTime);
+        Timber.d("APPLICATION INITIALIZATION END AT %s", System.currentTimeMillis());
     }
 
     private void upgradeSecurityProvider() {
@@ -115,16 +131,16 @@ public class App extends MultiDexApplication implements Components {
             ProviderInstaller.installIfNeededAsync(this, new ProviderInstaller.ProviderInstallListener() {
                 @Override
                 public void onProviderInstalled() {
-                    Log.e(App.class.getName(), "New security provider installed.");
+                    Timber.e("New security provider installed.");
                 }
 
                 @Override
                 public void onProviderInstallFailed(int errorCode, Intent recoveryIntent) {
-                    Log.e(App.class.getName(), "New security provider install failed.");
+                    Timber.e("New security provider install failed.");
                 }
             });
         } catch (Exception ex) {
-            Log.e(App.class.getName(), "Unknown issue trying to install a new security provider", ex);
+            Timber.e(ex, "Unknown issue trying to install a new security provider");
         }
 
     }
@@ -143,7 +159,7 @@ public class App extends MultiDexApplication implements Components {
     }
 
     private void setUpServerComponent() {
-        ConfigurationModel configuration = configurationManager.get();
+        Configuration configuration = configurationManager.get();
         if (configuration != null) {
             serverComponent = appComponent.plus(new ServerModule(configuration));
         }
@@ -225,7 +241,7 @@ public class App extends MultiDexApplication implements Components {
     // Server component
     ////////////////////////////////////////////////////////////////////////
     @Override
-    public ServerComponent createServerComponent(@NonNull ConfigurationModel configuration) {
+    public ServerComponent createServerComponent(@NonNull Configuration configuration) {
         serverComponent = appComponent.plus(new ServerModule(configuration));
         return serverComponent;
 
@@ -282,6 +298,22 @@ public class App extends MultiDexApplication implements Components {
         formComponent = null;
     }
 
+    ////////////////////////////////////////////////////////////////////////
+    // Dashboard component
+    ////////////////////////////////////////////////////////////////////////
+    @NonNull
+    public TeiDashboardComponent createDashboardComponent(@NonNull TeiDashboardModule dashboardModule) {
+        return (dashboardComponent = userComponent.plus(dashboardModule));
+    }
+
+    @Nullable
+    public TeiDashboardComponent dashboardComponent() {
+        return dashboardComponent;
+    }
+
+    public void releaseDashboardComponent() {
+        dashboardComponent = null;
+    }
 
     ////////////////////////////////////////////////////////////////////////
     // AndroidInjector

@@ -7,6 +7,7 @@ import android.util.AttributeSet;
 import android.view.View;
 
 import com.google.android.material.textfield.TextInputEditText;
+import com.google.android.material.textfield.TextInputLayout;
 
 import org.dhis2.R;
 import org.dhis2.data.forms.dataentry.fields.datetime.OnDateSelected;
@@ -27,6 +28,7 @@ import timber.log.Timber;
 public class DateTimeView extends FieldLayout implements View.OnClickListener, View.OnFocusChangeListener {
 
     private TextInputEditText editText;
+    private TextInputLayout inputLayout;
     private DateTimeViewBinding binding;
 
     private Calendar selectedCalendar;
@@ -79,7 +81,10 @@ public class DateTimeView extends FieldLayout implements View.OnClickListener, V
 
             if (date == null)
                 try {
-                    date = DateUtils.databaseDateFormatNoMillis().parse(data);
+                    if(DateUtils.dateHasNoSeconds(data))
+                        date = DateUtils.databaseDateFormatNoSeconds().parse(data);
+                    else
+                        date = DateUtils.databaseDateFormatNoMillis().parse(data);
                 } catch (ParseException e) {
                     Timber.e(e);
                 }
@@ -91,8 +96,14 @@ public class DateTimeView extends FieldLayout implements View.OnClickListener, V
         editText.setText(data);
     }
 
-    public void setWarningOrError(String msg) {
-        editText.setError(msg);
+    public void setWarning(String msg) {
+        inputLayout.setErrorTextAppearance(R.style.warning_appearance);
+        inputLayout.setError(msg);
+    }
+
+    public void setError(String msg) {
+        inputLayout.setErrorTextAppearance(R.style.error_appearance);
+        inputLayout.setError(msg);
     }
 
     public void setIsBgTransparent(boolean isBgTransparent) {
@@ -106,6 +117,7 @@ public class DateTimeView extends FieldLayout implements View.OnClickListener, V
 
     private void setLayout() {
         binding = DateTimeViewBinding.inflate(inflater, this, true);
+        inputLayout = findViewById(R.id.inputLayout);
         editText = findViewById(R.id.inputEditText);
         selectedCalendar = Calendar.getInstance();
         dateFormat = DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT);

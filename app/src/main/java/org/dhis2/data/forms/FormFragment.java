@@ -4,7 +4,6 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
-import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -28,10 +27,9 @@ import org.dhis2.data.tuples.Trio;
 import org.dhis2.usescases.eventsWithoutRegistration.eventCapture.EventCaptureActivity;
 import org.dhis2.usescases.general.FragmentGlobalAbstract;
 import org.dhis2.usescases.map.MapSelectorActivity;
-import org.dhis2.usescases.teiDashboard.mobile.TeiDashboardMobileActivity;
+import org.dhis2.usescases.teiDashboard.TeiDashboardMobileActivity;
 import org.dhis2.utils.Constants;
 import org.dhis2.utils.DialogClickListener;
-import org.dhis2.utils.Preconditions;
 import org.dhis2.utils.custom_views.CategoryComboDialog;
 import org.dhis2.utils.custom_views.CoordinatesView;
 import org.dhis2.utils.custom_views.CustomDialog;
@@ -42,7 +40,9 @@ import org.hisp.dhis.android.core.program.ProgramModel;
 import org.hisp.dhis.rules.models.RuleActionErrorOnCompletion;
 import org.hisp.dhis.rules.models.RuleActionShowError;
 import org.hisp.dhis.rules.models.RuleActionWarningOnCompletion;
+import org.jetbrains.annotations.NotNull;
 
+import java.util.Date;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -53,12 +53,12 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 import androidx.coordinatorlayout.widget.CoordinatorLayout;
-import androidx.core.widget.NestedScrollView;
 import androidx.fragment.app.Fragment;
 import androidx.viewpager.widget.ViewPager;
 import io.reactivex.Observable;
 import io.reactivex.functions.Consumer;
 import io.reactivex.subjects.PublishSubject;
+import timber.log.Timber;
 
 import static android.text.TextUtils.isEmpty;
 
@@ -70,10 +70,10 @@ public class FormFragment extends FragmentGlobalAbstract implements FormView, Co
     private static final String FORM_VIEW_TABLAYOUT = "formViewTablayout";
     private static final int RC_GO_BACK = 101;
 
-    View nextButton;
-    ViewPager viewPager;
-    TabLayout tabLayout;
-    Toolbar toolbar;
+    private View nextButton;
+    private ViewPager viewPager;
+    private TabLayout tabLayout;
+    private Toolbar toolbar;
 
     @Inject
     FormPresenter formPresenter;
@@ -84,7 +84,7 @@ public class FormFragment extends FragmentGlobalAbstract implements FormView, Co
     private PublishSubject<LatLng> onCoordinatesChanged;
     private TextInputLayout reportDateLayout;
     private TextInputEditText reportDate;
-    PublishSubject<ReportStatus> undoObservable;
+    private PublishSubject<ReportStatus> undoObservable;
     private CoordinatorLayout coordinatorLayout;
     private TextInputLayout incidentDateLayout;
     private TextInputEditText incidentDate;
@@ -95,15 +95,21 @@ public class FormFragment extends FragmentGlobalAbstract implements FormView, Co
     private String messageOnComplete = "";
     private boolean canComplete = true;
     private LinearLayout dateLayout;
-    public View datesLayout;
-    private NestedScrollView nestedScrollView;
-    private final int RQ_EVENT = 9876;
+    private View datesLayout;
+    private static final int RQ_EVENT = 9876;
     private RuleActionErrorOnCompletion errorOnCompletion;
-    private RuleActionWarningOnCompletion warningOnCompletion;
     private RuleActionShowError showError;
     private String programUid;
     private String teiUid;
+    private Date openingDate;
+    private Date closingDate;
+    private boolean mandatoryDelete = true;
+    private Context context;
 
+
+    public View getDatesLayout() {
+        return datesLayout;
+    }
 
     public FormFragment() {
         // Required empty public constructor
@@ -143,7 +149,6 @@ public class FormFragment extends FragmentGlobalAbstract implements FormView, Co
     @Override
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
-        nestedScrollView = view.findViewById(R.id.content_frame);
         dateLayout = view.findViewById(R.id.date_layout);
         nextButton = view.findViewById(R.id.next);
         viewPager = view.findViewById(R.id.viewpager_dataentry);
@@ -160,9 +165,9 @@ public class FormFragment extends FragmentGlobalAbstract implements FormView, Co
         viewPager.setAdapter(formSectionAdapter);
         tabLayout.setupWithViewPager(viewPager);
 
-        if (getArguments().getBoolean(FORM_VIEW_ACTIONBAR))
+        if (getArguments() != null && getArguments().getBoolean(FORM_VIEW_ACTIONBAR))
             setupActionBar();
-        else if (getArguments().getBoolean(FORM_VIEW_TABLAYOUT)) {
+        else if (getArguments() != null && getArguments().getBoolean(FORM_VIEW_TABLAYOUT)) {
             toolbar.setVisibility(View.GONE);
             datesLayout.setVisibility(View.GONE);
             nextButton.setVisibility(View.GONE);
@@ -203,7 +208,7 @@ public class FormFragment extends FragmentGlobalAbstract implements FormView, Co
 
     @Override
     public void onNext(ReportStatus reportStatus) {
-        if (viewPager.getCurrentItem() < viewPager.getAdapter().getCount() - 1) {
+        if (viewPager.getAdapter() != null && viewPager.getCurrentItem() < viewPager.getAdapter().getCount() - 1) {
             viewPager.setCurrentItem(viewPager.getCurrentItem() + 1, true);
 
             if (viewPager.getCurrentItem() == viewPager.getAdapter().getCount() - 1) {
@@ -238,20 +243,24 @@ public class FormFragment extends FragmentGlobalAbstract implements FormView, Co
     }
 
     @Override
-    public void onAttach(Context context) {
+    public void onAttach(@NotNull Context context) {
         super.onAttach(context);
-        FormViewArguments arguments = Preconditions.isNull(getArguments()
-                .getParcelable(FORM_VIEW_ARGUMENTS), "formViewArguments == null");
+        this.context = context;
+        if (getArguments() != null && getActivity() != null) {
+            FormViewArguments arguments = getArguments().getParcelable(FORM_VIEW_ARGUMENTS);
+            if (arguments != null) {
+                ((App) getActivity().getApplicationContext())
+                        .createFormComponent(new FormModule(arguments))
+                        .inject(this);
+            }
 
-        ((App) getActivity().getApplicationContext())
-                .createFormComponent(new FormModule(arguments))
-                .inject(this);
-
-        this.isEnrollment = getArguments().getBoolean(IS_ENROLLMENT);
+            this.isEnrollment = getArguments().getBoolean(IS_ENROLLMENT);
+        }
     }
 
     @Override
     public void onDetach() {
+        context = null;
         super.onDetach();
     }
 
@@ -288,11 +297,11 @@ public class FormFragment extends FragmentGlobalAbstract implements FormView, Co
             tabLayout.setupWithViewPager(viewPager);
             if (currentPostion != -1)
                 viewPager.setCurrentItem(currentPostion, false);
-            if (sectionViewModels.size() == 0) {
-                Log.d("EMPTY", "Show empty state");
+            if (sectionViewModels.isEmpty()) {
+                Timber.d("Show empty state");
                 // TODO: Show empty state
             }
-            if (viewPager.getCurrentItem() == viewPager.getAdapter().getCount() - 1) {
+            if (viewPager.getAdapter() != null && viewPager.getCurrentItem() == viewPager.getAdapter().getCount() - 1) {
                 ((Button) nextButton).setText(getString(R.string.save));
             }
         };
@@ -321,6 +330,12 @@ public class FormFragment extends FragmentGlobalAbstract implements FormView, Co
     @Override
     public Consumer<Boolean> renderCaptureCoordinates() {
         return captureCoordinates -> coordinatesView.setVisibility(captureCoordinates ? View.VISIBLE : View.GONE);
+    }
+
+    @Override
+    public void setMinMaxDates(Date openingDate, Date closingDate) {
+        this.openingDate = openingDate;
+        this.closingDate = closingDate;
     }
 
     @NonNull
@@ -376,30 +391,42 @@ public class FormFragment extends FragmentGlobalAbstract implements FormView, Co
     @Override
     public void initReportDatePicker(boolean reportAllowFutureDates, boolean incidentAllowFutureDates) {
         reportDate.setOnClickListener(v -> {
-            DatePickerDialogFragment dialog = DatePickerDialogFragment.create(reportAllowFutureDates);
-            dialog.show(getFragmentManager());
-            dialog.setFormattedOnDateSetListener(publishReportDateChange());
-        });
-
-        incidentDate.setOnClickListener(v -> {
-            DatePickerDialogFragment dialog = DatePickerDialogFragment.create(incidentAllowFutureDates);
-            dialog.show(getFragmentManager());
-            dialog.setFormattedOnDateSetListener(publishIncidentDateChange());
-        });
-
-        reportDate.setOnFocusChangeListener((v, hasFocus) -> {
-            if (hasFocus) {
+            if (getFragmentManager() != null) {
                 DatePickerDialogFragment dialog = DatePickerDialogFragment.create(reportAllowFutureDates);
+                dialog.setOpeningClosingDates(openingDate, closingDate);
                 dialog.show(getFragmentManager());
                 dialog.setFormattedOnDateSetListener(publishReportDateChange());
             }
         });
 
-        incidentDate.setOnFocusChangeListener((v, hasFocus) -> {
-            if (hasFocus) {
+        incidentDate.setOnClickListener(v -> {
+            if (getFragmentManager() != null) {
                 DatePickerDialogFragment dialog = DatePickerDialogFragment.create(incidentAllowFutureDates);
+                dialog.setOpeningClosingDates(openingDate, closingDate);
                 dialog.show(getFragmentManager());
                 dialog.setFormattedOnDateSetListener(publishIncidentDateChange());
+            }
+        });
+
+        reportDate.setOnFocusChangeListener((v, hasFocus) -> {
+            if (hasFocus) {
+                if (getFragmentManager() != null) {
+                    DatePickerDialogFragment dialog = DatePickerDialogFragment.create(reportAllowFutureDates);
+                    dialog.setOpeningClosingDates(openingDate, closingDate);
+                    dialog.show(getFragmentManager());
+                    dialog.setFormattedOnDateSetListener(publishReportDateChange());
+                }
+            }
+        });
+
+        incidentDate.setOnFocusChangeListener((v, hasFocus) -> {
+            if (hasFocus) {
+                if (getFragmentManager() != null) {
+                    DatePickerDialogFragment dialog = DatePickerDialogFragment.create(incidentAllowFutureDates);
+                    dialog.setOpeningClosingDates(openingDate, closingDate);
+                    dialog.show(getFragmentManager());
+                    dialog.setFormattedOnDateSetListener(publishIncidentDateChange());
+                }
             }
         });
     }
@@ -425,7 +452,9 @@ public class FormFragment extends FragmentGlobalAbstract implements FormView, Co
     @Override
     public void onMapPositionClick(CoordinatesView coordinatesView) {
         this.coordinatesView = coordinatesView;
-        startActivityForResult(MapSelectorActivity.create(getActivity()), Constants.RQ_MAP_LOCATION_VIEW);
+        if (getActivity() != null && isAdded()) {
+            startActivityForResult(MapSelectorActivity.create(getActivity()), Constants.RQ_MAP_LOCATION_VIEW);
+        }
     }
 
     @Override
@@ -437,26 +466,35 @@ public class FormFragment extends FragmentGlobalAbstract implements FormView, Co
     public void onActivityResult(int requestCode, int resultCode, Intent data) {
         switch (requestCode) {
             case Constants.RQ_MAP_LOCATION_VIEW:
-                coordinatesView.updateLocation(Double.valueOf(data.getStringExtra(MapSelectorActivity.LATITUDE)), Double.valueOf(data.getStringExtra(MapSelectorActivity.LONGITUDE)));
-                publishCoordinatesChanged(Double.valueOf(data.getStringExtra(MapSelectorActivity.LATITUDE)), Double.valueOf(data.getStringExtra(MapSelectorActivity.LONGITUDE)));
-                this.coordinatesView = null;
+                if (data != null && data.getStringExtra(MapSelectorActivity.LATITUDE) != null && data.getStringExtra(MapSelectorActivity.LONGITUDE) != null) {
+                    coordinatesView.updateLocation(Double.valueOf(data.getStringExtra(MapSelectorActivity.LATITUDE)), Double.valueOf(data.getStringExtra(MapSelectorActivity.LONGITUDE)));
+                    publishCoordinatesChanged(Double.valueOf(data.getStringExtra(MapSelectorActivity.LATITUDE)), Double.valueOf(data.getStringExtra(MapSelectorActivity.LONGITUDE)));
+                    this.coordinatesView = null;
+                }
                 break;
             case RQ_EVENT:
-                openDashboard();
+                if (data != null)
+                    openDashboard(data.getStringExtra(Constants.EVENT_UID));
+                break;
+            default:
                 break;
         }
         super.onActivityResult(requestCode, resultCode, data);
     }
 
-    void openDashboard(){
+    private void openDashboard(@Nullable String eventUid) {
         Bundle bundle = new Bundle();
         bundle.putString("PROGRAM_UID", programUid);
         bundle.putString("TEI_UID", teiUid);
+        if (eventUid != null)
+            bundle.putString(Constants.EVENT_UID, eventUid);
         startActivity(TeiDashboardMobileActivity.class, bundle, false, false, null);
-        getActivity().finish();
+        if (getActivity() != null && isAdded()) {
+            getActivity().finish();
+        }
     }
 
-    void publishCoordinatesChanged(Double lat, Double lon) {
+    private void publishCoordinatesChanged(Double lat, Double lon) {
         if (onCoordinatesChanged != null) {
             onCoordinatesChanged.onNext(new LatLng(lat, lon));
         }
@@ -493,12 +531,10 @@ public class FormFragment extends FragmentGlobalAbstract implements FormView, Co
                     eventCreationIntent.putExtras(EventCaptureActivity.getActivityBundle(enrollmentTrio.val2(), enrollmentTrio.val1()));
                     eventCreationIntent.putExtra(Constants.TRACKED_ENTITY_INSTANCE, enrollmentTrio.val0());
                     startActivityForResult(eventCreationIntent, RQ_EVENT);
-                    /*FormViewArguments formViewArguments = FormViewArguments.createForEvent(enrollmentTrio.val2());
-                    startActivityForResult(FormActivity.create(getContext(), formViewArguments, isEnrollment), RQ_EVENT);*/
                 } else { //val0 is program uid, val1 is trackedEntityInstance, val2 is empty
                     this.programUid = enrollmentTrio.val1();
                     this.teiUid = enrollmentTrio.val0();
-                    openDashboard();
+                    openDashboard(null);
                 }
             } else {
                 checkAction();
@@ -509,48 +545,63 @@ public class FormFragment extends FragmentGlobalAbstract implements FormView, Co
     }
 
     private void checkAction() {
-        CustomDialog dialog = new CustomDialog(
-                getContext(),
-                getString(R.string.warning_error_on_complete_title),
-                messageOnComplete,
-                getString(R.string.button_ok),
-                getString(R.string.cancel),
-                1001,
-                new DialogClickListener() {
-                    @Override
-                    public void onPositive() {
-                        if (canComplete)
-                            getActivity().finish();
-                    }
+        if (isAdded() && getContext() != null) {
+            CustomDialog dialog = new CustomDialog(
+                    getContext(),
+                    getString(R.string.warning_error_on_complete_title),
+                    messageOnComplete,
+                    getString(R.string.button_ok),
+                    getString(R.string.cancel),
+                    1001,
+                    new DialogClickListener() {
+                        @Override
+                        public void onPositive() {
+                            if (canComplete && getActivity() != null && isAdded())
+                                getActivity().finish();
+                        }
 
-                    @Override
-                    public void onNegative() {
-                    }
-                });
-        if (!isEmpty(messageOnComplete))
-            dialog.show();
-        else
-            getActivity().finish();
+                        @Override
+                        public void onNegative() {
+                            // do nothing
+                        }
+                    });
+            if (isAdded() && !isEmpty(messageOnComplete) && !dialog.isShowing())
+                dialog.show();
+            else if (isAdded() && getActivity() != null) {
+                getActivity().finish(); //TODO: ASK IF USER WANTS TO DELETE RECORD
+            }
+        }
     }
 
     @Override
     public void showMandatoryFieldsDialog() {
+        String description;
+        String buttonAccept;
+        if (mandatoryDelete) {
+            description = isEnrollment ? getAbstracContext().getString(R.string.missing_mandatory_fields_text) :
+                    getAbstracContext().getString(R.string.missing_mandatory_fields_events);
+            buttonAccept = isEnrollment ? getAbstracContext().getString(R.string.missing_mandatory_fields_go_back) :
+                    getAbstracContext().getString(R.string.button_ok);
+        } else {
+            description = getAbstracContext().getString(R.string.missing_mandatory_fields_text_not_delete);
+            buttonAccept = getAbstracContext().getString(R.string.action_accept);
+        }
         new CustomDialog(
                 getAbstracContext(),
                 getAbstracContext().getString(R.string.missing_mandatory_fields_title),
-                isEnrollment ? getAbstracContext().getString(R.string.missing_mandatory_fields_text) :
-                        getAbstracContext().getString(R.string.missing_mandatory_fields_events),
-                isEnrollment ? getAbstracContext().getString(R.string.missing_mandatory_fields_go_back) :
-                        getAbstracContext().getString(R.string.button_ok),
+                description,
+                buttonAccept,
                 getAbstracContext().getString(R.string.cancel),
                 RC_GO_BACK,
                 new DialogClickListener() {
                     @Override
                     public void onPositive() {
-                        if (isEnrollment)
-                            deleteAllSavedDataAndGoBack();
-                        else
-                            getActivity().finish();
+                        if (mandatoryDelete)
+                            if (isEnrollment)
+                                deleteAllSavedDataAndGoBack();
+                            else if (getActivity() != null && isAdded()) {
+                                getActivity().finish();
+                            }
                     }
 
                     @Override
@@ -576,6 +627,11 @@ public class FormFragment extends FragmentGlobalAbstract implements FormView, Co
         formPresenter.checkMandatoryFields();
     }
 
+    public void onBackPressed(boolean delete) {
+        this.mandatoryDelete = delete;
+        formPresenter.checkMandatoryFields();
+    }
+
     public RuleActionErrorOnCompletion hasErrorOnComple() {
         return errorOnCompletion;
     }
@@ -595,7 +651,7 @@ public class FormFragment extends FragmentGlobalAbstract implements FormView, Co
 
     @Override
     public void setWarningOnCompletion(RuleActionWarningOnCompletion warningOnCompletion) {
-        this.warningOnCompletion = warningOnCompletion;
+        // do nothing
     }
 
     @Override

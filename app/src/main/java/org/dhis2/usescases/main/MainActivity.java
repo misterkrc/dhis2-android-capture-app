@@ -12,9 +12,11 @@ import android.widget.TextView;
 import com.andrognito.pinlockview.PinLockListener;
 
 import org.dhis2.App;
+import org.dhis2.BuildConfig;
 import org.dhis2.R;
 import org.dhis2.databinding.ActivityMainBinding;
 import org.dhis2.usescases.about.AboutFragment;
+import org.dhis2.usescases.development.DevelopmentActivity;
 import org.dhis2.usescases.general.ActivityGlobalAbstract;
 import org.dhis2.usescases.jira.JiraFragment;
 import org.dhis2.usescases.main.program.ProgramFragment;
@@ -22,15 +24,15 @@ import org.dhis2.usescases.qrReader.QrReaderFragment;
 import org.dhis2.usescases.syncManager.ErrorDialog;
 import org.dhis2.usescases.syncManager.SyncManagerFragment;
 import org.dhis2.utils.Constants;
-import org.dhis2.utils.Period;
+import org.dhis2.utils.SharedPreferenceBooleanLiveData;
 import org.hisp.dhis.android.core.maintenance.D2Error;
 
 import java.util.List;
+import java.util.Objects;
 
 import javax.inject.Inject;
 
 import androidx.annotation.NonNull;
-import androidx.core.content.res.ResourcesCompat;
 import androidx.databinding.DataBindingUtil;
 import androidx.databinding.ObservableInt;
 import androidx.fragment.app.Fragment;
@@ -48,14 +50,18 @@ public class MainActivity extends ActivityGlobalAbstract implements MainContract
     ObservableInt currentFragment = new ObservableInt(R.id.menu_home);
     private boolean isPinLayoutVisible = false;
 
+    private boolean metaSyncStatus;
+    private boolean metaNoNetwork;
+
     private int fragId;
+    private SharedPreferences prefs;
 
     //-------------------------------------
     //region LIFECYCLE
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        ((App) getApplicationContext()).userComponent().plus(new MainModule()).inject(this);
+        Objects.requireNonNull(((App) getApplicationContext()).userComponent()).plus(new MainModule()).inject(this);
 
         super.onCreate(savedInstanceState);
         binding = DataBindingUtil.setContentView(this, R.layout.activity_main);
@@ -91,6 +97,27 @@ public class MainActivity extends ActivityGlobalAbstract implements MainContract
             binding.setCurrentFragment(currentFragment);
             changeFragment(R.id.menu_home);
         }
+
+        prefs = getAbstracContext().getSharedPreferences(
+                Constants.SHARE_PREFS, Context.MODE_PRIVATE);
+
+        SharedPreferenceBooleanLiveData lastMetaSyncStatus = new SharedPreferenceBooleanLiveData(prefs, Constants.LAST_META_SYNC_STATUS, true);
+        SharedPreferenceBooleanLiveData lastMetaNoNetWork = new SharedPreferenceBooleanLiveData(prefs, Constants.LAST_META_SYNC_NO_NETWORK, false);
+        lastMetaSyncStatus.observe(this, metaStatus -> {
+            this.metaSyncStatus = metaStatus;
+            checkSyncStatus();
+        });
+        lastMetaNoNetWork.observe(this, metaNoNetwork -> {
+            this.metaNoNetwork = metaNoNetwork;
+            checkSyncStatus();
+        });
+
+        /*if (BuildConfig.DEBUG)
+            binding.moreOptions.setOnLongClickListener(view -> {
+                startActivity(DevelopmentActivity.class, null, false, false, null);
+                return false;
+            });*/
+
     }
 
     @Override
@@ -103,12 +130,6 @@ public class MainActivity extends ActivityGlobalAbstract implements MainContract
     protected void onResume() {
         super.onResume();
         presenter.init(this);
-
-        if (!getSharedPreferences().getBoolean(Constants.LAST_DATA_SYNC_STATUS, true) ||
-                !getSharedPreferences().getBoolean(Constants.LAST_META_SYNC_STATUS, true)) {
-            binding.errorLayout.setVisibility(View.VISIBLE);
-        } else
-            binding.errorLayout.setVisibility(View.GONE);
     }
 
     @Override
@@ -143,38 +164,18 @@ public class MainActivity extends ActivityGlobalAbstract implements MainContract
 
     @Override
     public void showHideFilter() {
-        programFragment.binding.filterLayout.setVisibility(programFragment.binding.filterLayout.getVisibility() == View.VISIBLE ? View.GONE : View.VISIBLE);
+        programFragment.getBinding().filterLayout.setVisibility(programFragment.getBinding().filterLayout.getVisibility() == View.VISIBLE ? View.GONE : View.VISIBLE);
         checkFilterEnabled();
     }
 
     private void checkFilterEnabled() {
-        int color = getPrimaryColor();
-        if (programFragment.binding.filterLayout.getVisibility() == View.VISIBLE) {
-            binding.filter.setBackgroundColor(color);
-            binding.filter.setColorFilter(getResources().getColor(R.color.white), PorterDuff.Mode.SRC_IN);
-            binding.filter.setBackgroundResource(0);
-        }
-        // when filter layout is hidden
-        else {
-            // not applied period filter
-            if (programFragment.getCurrentPeriod() == Period.NONE && programFragment.areAllOrgUnitsSelected()) {
-                binding.filter.setBackgroundColor(color);
-                binding.filter.setColorFilter(getResources().getColor(R.color.white), PorterDuff.Mode.SRC_IN);
-                binding.filter.setBackgroundResource(0);
-            }
-            // applied period filter
-            else {
-                binding.filter.setBackgroundColor(ResourcesCompat.getColor(getResources(), R.color.white, getTheme()));
-                binding.filter.setColorFilter(color, PorterDuff.Mode.SRC_IN);
-                binding.filter.setBackgroundResource(R.drawable.white_circle);
-            }
-        }
+        binding.filter.setBackgroundColor(programFragment.areFiltersApplied() ? getAccentColor() : getPrimaryColor());
+        binding.filter.setColorFilter(programFragment.areFiltersApplied() ? getPrimaryColor() : getAccentColor(), PorterDuff.Mode.SRC_IN);
+        binding.filter.setBackgroundResource(programFragment.areFiltersApplied() ? R.drawable.white_circle : 0);
     }
 
     @Override
     public void onLockClick() {
-        SharedPreferences prefs = getAbstracContext().getSharedPreferences(
-                Constants.SHARE_PREFS, Context.MODE_PRIVATE);
         if (prefs.getString("pin", null) == null) {
             binding.drawerLayout.closeDrawers();
             binding.pinLayout.getRoot().setVisibility(View.VISIBLE);
@@ -238,7 +239,7 @@ public class MainActivity extends ActivityGlobalAbstract implements MainContract
         if (fragment != null) {
             currentFragment.set(id);
 
-            getSupportFragmentManager().beginTransaction().replace(R.id.fragment_container, fragment, tag).commit();
+            getSupportFragmentManager().beginTransaction().replace(R.id.fragment_container, fragment, tag).commitAllowingStateLoss();
             binding.title.setText(tag);
         }
         binding.drawerLayout.closeDrawers();
@@ -246,8 +247,7 @@ public class MainActivity extends ActivityGlobalAbstract implements MainContract
 
     @Override
     public void showSyncErrors(List<D2Error> data) {
-        if (!ErrorDialog.newInstace().isAdded())
-            ErrorDialog.newInstace().setData(data).show(getSupportFragmentManager().beginTransaction(), "ErrorDialog");
+        new ErrorDialog().setData(data).show(getSupportFragmentManager().beginTransaction(), ErrorDialog.TAG);
     }
 
     public void setTitle(String title) {
@@ -266,5 +266,16 @@ public class MainActivity extends ActivityGlobalAbstract implements MainContract
         else
             showToast(getString(R.string.no_intructions));
 
+    }
+
+    private void checkSyncStatus() {
+        if (!metaSyncStatus) {
+            if (metaNoNetwork)
+                binding.errorText.setText(getString(R.string.error_no_network_during_sync));
+            else
+                binding.errorText.setText(getString(R.string.errors_during_sync));
+            binding.errorLayout.setVisibility(View.VISIBLE);
+        } else
+            binding.errorLayout.setVisibility(View.GONE);
     }
 }

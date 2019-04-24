@@ -1,8 +1,8 @@
 package org.dhis2.usescases.eventsWithoutRegistration.eventInitial;
 
 import android.content.Context;
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
+
+import com.squareup.sqlbrite2.BriteDatabase;
 
 import org.dhis2.data.dagger.PerActivity;
 import org.dhis2.data.forms.EventRepository;
@@ -12,14 +12,12 @@ import org.dhis2.data.metadata.MetadataRepository;
 import org.dhis2.data.schedulers.SchedulerProvider;
 import org.dhis2.usescases.eventsWithoutRegistration.eventSummary.EventSummaryRepository;
 import org.dhis2.usescases.eventsWithoutRegistration.eventSummary.EventSummaryRepositoryImpl;
-import org.dhis2.usescases.programDetail.ProgramRepository;
-import org.dhis2.usescases.programDetail.ProgramRepositoryImpl;
 import org.dhis2.utils.CodeGenerator;
-import com.squareup.sqlbrite2.BriteDatabase;
-
-import org.hisp.dhis.android.core.data.database.DatabaseAdapter;
+import org.hisp.dhis.android.core.D2;
 import org.hisp.dhis.rules.RuleExpressionEvaluator;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import dagger.Module;
 import dagger.Provides;
 
@@ -48,8 +46,9 @@ public class EventInitialModule {
     EventInitialContract.Presenter providesPresenter(@NonNull EventSummaryRepository eventSummaryRepository,
                                                      @NonNull EventInitialRepository eventInitialRepository,
                                                      @NonNull MetadataRepository metadataRepository,
-                                                     @NonNull SchedulerProvider schedulerProvider) {
-        return new EventInitialPresenter(eventSummaryRepository, eventInitialRepository, metadataRepository, schedulerProvider);
+                                                     @NonNull SchedulerProvider schedulerProvider,
+                                                     @NonNull D2 d2) {
+        return new EventInitialPresenter(eventSummaryRepository, eventInitialRepository, metadataRepository, schedulerProvider, d2);
     }
 
 
@@ -64,8 +63,9 @@ public class EventInitialModule {
     @Provides
     FormRepository formRepository(@NonNull BriteDatabase briteDatabase,
                                   @NonNull RuleExpressionEvaluator evaluator,
-                                  @NonNull RulesRepository rulesRepository) {
-        return new EventRepository(briteDatabase, evaluator, rulesRepository, eventUid);
+                                  @NonNull RulesRepository rulesRepository,
+                                  @NonNull D2 d2) {
+        return new EventRepository(briteDatabase, evaluator, rulesRepository, eventUid,d2);
     }
 
     @Provides
@@ -75,13 +75,7 @@ public class EventInitialModule {
 
     @Provides
     @PerActivity
-    EventInitialRepository eventDetailRepository(@NonNull CodeGenerator codeGenerator, BriteDatabase briteDatabase) {
-        return new EventInitialRepositoryImpl(codeGenerator, briteDatabase, eventUid);
-    }
-
-    @Provides
-    @PerActivity
-    ProgramRepository homeRepository(BriteDatabase briteDatabase) {
-        return new ProgramRepositoryImpl(briteDatabase);
+    EventInitialRepository eventDetailRepository(@NonNull CodeGenerator codeGenerator, BriteDatabase briteDatabase, D2 d2) {
+        return new EventInitialRepositoryImpl(codeGenerator, briteDatabase, eventUid, d2);
     }
 }

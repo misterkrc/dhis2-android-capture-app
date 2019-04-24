@@ -1,25 +1,27 @@
 package org.dhis2.usescases.eventsWithoutRegistration.eventInitial;
 
 import android.app.DatePickerDialog;
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
+
+import com.unnamed.b.atv.model.TreeNode;
 
 import org.dhis2.data.forms.FormSectionViewModel;
 import org.dhis2.data.forms.dataentry.fields.FieldViewModel;
 import org.dhis2.usescases.general.AbstractActivityContracts;
-import com.unnamed.b.atv.model.TreeNode;
-
-import org.hisp.dhis.android.core.category.CategoryComboModel;
-import org.hisp.dhis.android.core.category.CategoryOptionComboModel;
+import org.hisp.dhis.android.core.category.CategoryCombo;
+import org.hisp.dhis.android.core.category.CategoryOption;
+import org.hisp.dhis.android.core.category.CategoryOptionCombo;
+import org.hisp.dhis.android.core.common.ObjectStyleModel;
 import org.hisp.dhis.android.core.event.EventModel;
 import org.hisp.dhis.android.core.organisationunit.OrganisationUnitModel;
-import org.hisp.dhis.android.core.period.PeriodType;
 import org.hisp.dhis.android.core.program.ProgramModel;
 import org.hisp.dhis.android.core.program.ProgramStageModel;
 
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import io.reactivex.functions.Consumer;
 
 /**
@@ -29,9 +31,11 @@ import io.reactivex.functions.Consumer;
 public class EventInitialContract {
 
     public interface View extends AbstractActivityContracts.View {
+        void checkActionButtonVisibility();
+
         void setProgram(@NonNull ProgramModel program);
 
-        void setCatComboOptions(CategoryComboModel catCombo, List<CategoryOptionComboModel> catComboList);
+        void setCatComboOptions(CategoryCombo catCombo, Map<String, CategoryOption> stringCategoryOptionMap);
 
         void showDateDialog(DatePickerDialog.OnDateSetListener listener);
 
@@ -42,8 +46,6 @@ public class EventInitialContract {
         void addTree(TreeNode treeNode);
 
         void setEvent(EventModel event);
-
-        void setCatOption(CategoryOptionComboModel categoryOptionComboModel);
 
         void setLocation(double latitude, double longitude);
 
@@ -60,8 +62,6 @@ public class EventInitialContract {
 
         void showProgramStageSelection();
 
-        void setReportDate(Date date);
-
         void setOrgUnit(String orgUnitId, String orgUnitName);
 
         void showNoOrgUnits();
@@ -75,6 +75,8 @@ public class EventInitialContract {
         void showEventWasDeleted();
 
         void setHideSection(String sectionUid);
+
+        void renderObjectStyle(ObjectStyleModel objectStyleModel);
     }
 
     public interface Presenter extends AbstractActivityContracts.Presenter {
@@ -109,15 +111,13 @@ public class EventInitialContract {
 
         void onLocation2Click();
 
-        void getCatOption(String categoryOptionComboId);
+        void onFieldChanged(CharSequence s, int start, int before, int count);
 
         void filterOrgUnits(String date);
 
         void getSectionCompletion(@Nullable String sectionUid);
 
         void goToSummary();
-
-        void getEvents(String programUid, String enrollmentUid, String programStageUid, PeriodType periodType);
 
         void getOrgUnits(String programId);
 
@@ -130,6 +130,10 @@ public class EventInitialContract {
         void deleteEvent(String trackedEntityInstance);
 
         boolean isEnrollmentOpen();
+
+        void getStageObjectStyle(String uid);
+
+        String getCatOptionCombo(List<CategoryOptionCombo> categoryOptionCombos, List<CategoryOption> values);
     }
 
 }

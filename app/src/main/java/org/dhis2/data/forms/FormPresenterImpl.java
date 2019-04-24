@@ -1,6 +1,5 @@
 package org.dhis2.data.forms;
 
-import androidx.annotation.NonNull;
 import android.text.TextUtils;
 
 import com.squareup.sqlbrite2.BriteDatabase;
@@ -11,11 +10,13 @@ import org.dhis2.data.forms.dataentry.RuleEngineRepository;
 import org.dhis2.data.forms.dataentry.fields.FieldViewModel;
 import org.dhis2.data.schedulers.SchedulerProvider;
 import org.dhis2.utils.Result;
+import org.hisp.dhis.android.core.D2;
 import org.hisp.dhis.android.core.category.CategoryOptionComboModel;
 import org.hisp.dhis.rules.models.RuleAction;
 import org.hisp.dhis.rules.models.RuleActionErrorOnCompletion;
 import org.hisp.dhis.rules.models.RuleActionHideField;
 import org.hisp.dhis.rules.models.RuleActionHideSection;
+import org.hisp.dhis.rules.models.RuleActionSetMandatoryField;
 import org.hisp.dhis.rules.models.RuleActionShowError;
 import org.hisp.dhis.rules.models.RuleActionWarningOnCompletion;
 import org.hisp.dhis.rules.models.RuleEffect;
@@ -26,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import androidx.annotation.NonNull;
 import io.reactivex.Flowable;
 import io.reactivex.Observable;
 import io.reactivex.android.schedulers.AndroidSchedulers;
@@ -65,14 +67,15 @@ class FormPresenterImpl implements FormPresenter {
     FormPresenterImpl(@NonNull FormViewArguments formViewArguments,
                       @NonNull SchedulerProvider schedulerProvider,
                       @NonNull BriteDatabase briteDatabase,
-                      @NonNull FormRepository formRepository) {
+                      @NonNull FormRepository formRepository,
+                      @NonNull D2 d2) {
         this.formViewArguments = formViewArguments;
         this.formRepository = formRepository;
         this.schedulerProvider = schedulerProvider;
         this.compositeDisposable = new CompositeDisposable();
         if (formViewArguments.type() == FormViewArguments.Type.ENROLLMENT) {
             isEvent = false;
-            this.ruleEngineRepository = new EnrollmentRuleEngineRepository(briteDatabase, formRepository, formViewArguments.uid());
+            this.ruleEngineRepository = new EnrollmentRuleEngineRepository(briteDatabase, formRepository, formViewArguments.uid(), d2);
         } else {
             isEvent = true;
             this.ruleEngineRepository = new EventsRuleEngineRepository(briteDatabase, formRepository, formViewArguments.uid());
@@ -128,6 +131,12 @@ class FormPresenterImpl implements FormPresenter {
                             },
                             Timber::e));
         }
+
+        compositeDisposable.add(formRepository.getOrgUnitDates()
+                .subscribeOn(schedulerProvider.io())
+                .observeOn(schedulerProvider.ui())
+                .subscribe(orgUnit -> view.setMinMaxDates(orgUnit.openingDate(), orgUnit.closedDate()),
+                        Timber::e));
 
         //region SECTIONS
         Flowable<List<FormSectionViewModel>> sectionsFlowable = formRepository.sections();
@@ -204,7 +213,7 @@ class FormPresenterImpl implements FormPresenter {
             @NonNull List<FieldViewModel> viewModels,
             @NonNull Result<RuleEffect> calcResult) {
         if (calcResult.error() != null) {
-            calcResult.error().printStackTrace();
+            Timber.e(calcResult.error());
             return viewModels;
         }
 
@@ -225,6 +234,11 @@ class FormPresenterImpl implements FormPresenter {
             } else if (ruleAction instanceof RuleActionHideSection) {
                 RuleActionHideSection hideSection = (RuleActionHideSection) ruleAction;
                 fieldViewModels.remove(hideSection.programStageSection());
+            } else if (ruleAction instanceof RuleActionSetMandatoryField) {
+                RuleActionSetMandatoryField mandatoryField = (RuleActionSetMandatoryField) ruleAction;
+                FieldViewModel model = fieldViewModels.get(mandatoryField.field());
+                if (model != null)
+                    fieldViewModels.put(mandatoryField.field(), model.setMandatory());
             }
         }
     }
@@ -243,7 +257,7 @@ class FormPresenterImpl implements FormPresenter {
             @NonNull List<FormSectionViewModel> viewModels,
             @NonNull Result<RuleEffect> calcResult) {
         if (calcResult.error() != null) {
-            calcResult.error().printStackTrace();
+            Timber.e(calcResult.error());
             return viewModels;
         }
 

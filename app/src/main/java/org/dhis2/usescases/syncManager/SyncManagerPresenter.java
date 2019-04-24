@@ -67,6 +67,14 @@ public class SyncManagerPresenter implements SyncManagerContracts.Presenter {
         );
     }
 
+    /**
+     * This method allows you to create a new periodic DATA sync work with an interval defined by
+     * {@code seconds}.
+     * All scheduled works will be cancelled in order to reschedule a new one.
+     *
+     * @param seconds     period interval in seconds
+     * @param scheduleTag Name of the periodic work (DATA)
+     */
     @Override
     public void syncData(int seconds, String scheduleTag) {
         WorkManager.getInstance().cancelAllWorkByTag(scheduleTag);
@@ -79,6 +87,14 @@ public class SyncManagerPresenter implements SyncManagerContracts.Presenter {
         WorkManager.getInstance().enqueueUniquePeriodicWork(scheduleTag, ExistingPeriodicWorkPolicy.REPLACE, request);
     }
 
+    /**
+     * This method allows you to create a new periodic METADATA sync work with an interval defined by
+     * {@code seconds}.
+     * All scheduled works will be cancelled in order to reschedule a new one.
+     *
+     * @param seconds     period interval in seconds
+     * @param scheduleTag Name of the periodic work (META)
+     */
     @Override
     public void syncMeta(int seconds, String scheduleTag) {
         WorkManager.getInstance().cancelAllWorkByTag(scheduleTag);
@@ -91,27 +107,32 @@ public class SyncManagerPresenter implements SyncManagerContracts.Presenter {
         WorkManager.getInstance().enqueueUniquePeriodicWork(scheduleTag, ExistingPeriodicWorkPolicy.REPLACE, request);
     }
 
+    /**
+     * This method allows you to run a DATA sync work.
+     */
     @Override
     public void syncData() {
         OneTimeWorkRequest.Builder syncDataBuilder = new OneTimeWorkRequest.Builder(SyncDataWorker.class);
-        syncDataBuilder.addTag(Constants.DATA);
+        syncDataBuilder.addTag(Constants.DATA_NOW);
         syncDataBuilder.setConstraints(new Constraints.Builder()
                 .setRequiredNetworkType(NetworkType.CONNECTED)
                 .build());
         OneTimeWorkRequest request = syncDataBuilder.build();
-        WorkManager.getInstance().beginUniqueWork(Constants.DATA, ExistingWorkPolicy.KEEP, request).enqueue();
-//        WorkManager.getInstance().enqueue(request);
+        WorkManager.getInstance().beginUniqueWork(Constants.DATA_NOW, ExistingWorkPolicy.REPLACE, request).enqueue();
     }
 
+    /**
+     * This method allows you to run a METADATA sync work.
+     */
     @Override
     public void syncMeta() {
         OneTimeWorkRequest.Builder syncDataBuilder = new OneTimeWorkRequest.Builder(SyncMetadataWorker.class);
-        syncDataBuilder.addTag(Constants.META);
+        syncDataBuilder.addTag(Constants.META_NOW);
         syncDataBuilder.setConstraints(new Constraints.Builder()
                 .setRequiredNetworkType(NetworkType.CONNECTED)
                 .build());
         OneTimeWorkRequest request = syncDataBuilder.build();
-        WorkManager.getInstance().beginUniqueWork(Constants.META, ExistingWorkPolicy.KEEP, request).enqueue();
+        WorkManager.getInstance().beginUniqueWork(Constants.META_NOW, ExistingWorkPolicy.REPLACE, request).enqueue();
     }
 
 
@@ -166,12 +187,21 @@ public class SyncManagerPresenter implements SyncManagerContracts.Presenter {
     }
 
     @Override
+    public void onDeleteLocalData() {
+        view.deleteLocalData();
+    }
+
+    @Override
     public void deleteLocalData() {
+        boolean error = false;
         try {
             d2.wipeModule().wipeData();
         } catch (D2Error e) {
             Timber.e(e);
+            error = true;
         }
+
+        view.showLocalDataDeleted(error);
     }
 
     @Override
@@ -181,16 +211,7 @@ public class SyncManagerPresenter implements SyncManagerContracts.Presenter {
 
     @Override
     public void checkSyncErrors() {
-        compositeDisposable.add(
-                metadataRepository.getSyncErrors()
-                        .subscribeOn(Schedulers.io())
-                        .observeOn(AndroidSchedulers.mainThread())
-                        .subscribe(
-                                data -> view.showSyncErrors(data),
-                                Timber::e
-
-                        )
-        );
+        view.showSyncErrors(metadataRepository.getSyncErrors());
     }
 
     @Override

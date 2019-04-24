@@ -9,7 +9,7 @@ import org.dhis2.R;
 import org.dhis2.data.dagger.PerServer;
 import org.hisp.dhis.android.BuildConfig;
 import org.hisp.dhis.android.core.D2;
-import org.hisp.dhis.android.core.configuration.ConfigurationModel;
+import org.hisp.dhis.android.core.configuration.Configuration;
 import org.hisp.dhis.android.core.data.api.Authenticator;
 import org.hisp.dhis.android.core.data.api.BasicAuthenticatorFactory;
 import org.hisp.dhis.android.core.data.database.DatabaseAdapter;
@@ -28,19 +28,20 @@ import javax.net.ssl.X509TrustManager;
 import androidx.annotation.NonNull;
 import dagger.Module;
 import dagger.Provides;
-import okhttp3.CipherSuite;
 import okhttp3.ConnectionSpec;
+import okhttp3.Dispatcher;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
+import okhttp3.Response;
 import okhttp3.TlsVersion;
 import timber.log.Timber;
 
 @Module
 @PerServer
 public class ServerModule {
-    private final ConfigurationModel configuration;
+    private final Configuration configuration;
 
-    public ServerModule(@NonNull ConfigurationModel configuration) {
+    public ServerModule(@NonNull Configuration configuration) {
         this.configuration = configuration;
     }
 
@@ -70,6 +71,8 @@ public class ServerModule {
                 org.dhis2.BuildConfig.VERSION_NAME, //App version
                 Build.VERSION.SDK_INT //Android Version
         );
+        Dispatcher dispatcher = new Dispatcher();
+        dispatcher.setMaxRequests(5);
         OkHttpClient.Builder client = new OkHttpClient.Builder()
                 .addInterceptor(authenticator)
                 .addInterceptor(chain -> {
@@ -77,17 +80,19 @@ public class ServerModule {
                     Request withUserAgent = originalRequest.newBuilder()
                             .header("User-Agent", userAgent)
                             .build();
+                    Timber.d(originalRequest.url().encodedPath());
                     return chain.proceed(withUserAgent);
                 })
                 .readTimeout(2, TimeUnit.MINUTES)
                 .connectTimeout(2, TimeUnit.MINUTES)
                 .writeTimeout(2, TimeUnit.MINUTES)
-                .addNetworkInterceptor(new StethoInterceptor());
+                .addNetworkInterceptor(new StethoInterceptor())
+                .dispatcher(dispatcher);
 
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
             try {
 
-                SSLContext sc = SSLContext.getInstance("TLS"/*"TLSv1.2"*/);
+                SSLContext sc = SSLContext.getInstance("TLSv1.2");
                 sc.init(null, null, null);
 
                 TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance(
@@ -102,10 +107,10 @@ public class ServerModule {
 
                 ConnectionSpec cs = new ConnectionSpec.Builder(ConnectionSpec.MODERN_TLS)
                         .tlsVersions(TlsVersion.TLS_1_0, TlsVersion.TLS_1_1, TlsVersion.TLS_1_2)
-                        .cipherSuites(
+                        /*.cipherSuites(
                                 CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
                                 CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
-                                CipherSuite.TLS_DHE_RSA_WITH_AES_128_GCM_SHA256)
+                                CipherSuite.TLS_DHE_RSA_WITH_AES_128_GCM_SHA256)*/
                         .build();
 
                 List<ConnectionSpec> specs = new ArrayList<>();
@@ -117,13 +122,11 @@ public class ServerModule {
                         .sslSocketFactory(new TLSSocketFactory(sc.getSocketFactory()), trustManager)
                         .connectionSpecs(specs);
 
-
             } catch (Exception e) {
                 Timber.e(e);
             }
 
         }
-
         return client.build();
     }
 
@@ -132,6 +135,5 @@ public class ServerModule {
     UserManager configurationRepository(D2 d2) {
         return new UserManagerImpl(d2);
     }
-
 
 }

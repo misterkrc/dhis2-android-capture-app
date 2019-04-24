@@ -6,22 +6,13 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
-import android.content.res.TypedArray;
 import android.os.Bundle;
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
-import androidx.core.app.ActivityOptionsCompat;
-import androidx.core.content.ContextCompat;
-import androidx.localbroadcastmanager.content.LocalBroadcastManager;
-import androidx.core.widget.ContentLoadingProgressBar;
-import androidx.appcompat.app.AlertDialog;
-import androidx.appcompat.app.AppCompatActivity;
-import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.WindowManager;
 import android.view.inputmethod.InputMethodManager;
+import android.widget.Button;
 import android.widget.PopupMenu;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -39,19 +30,28 @@ import org.dhis2.usescases.map.MapSelectorActivity;
 import org.dhis2.usescases.splash.SplashActivity;
 import org.dhis2.utils.ColorUtils;
 import org.dhis2.utils.Constants;
-import org.dhis2.utils.custom_views.CoordinatesView;
-import org.dhis2.utils.custom_views.CustomDialog;
 import org.dhis2.utils.HelpManager;
 import org.dhis2.utils.OnDialogClickListener;
 import org.dhis2.utils.SyncUtils;
+import org.dhis2.utils.custom_views.CoordinatesView;
+import org.dhis2.utils.custom_views.CustomDialog;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Type;
 import java.util.List;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityOptionsCompat;
+import androidx.core.content.ContextCompat;
+import androidx.core.widget.ContentLoadingProgressBar;
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import rx.Observable;
 import rx.subjects.BehaviorSubject;
+import timber.log.Timber;
 
 /**
  * QUADRAM. Created by Javi on 28/07/2017.
@@ -61,22 +61,20 @@ public abstract class ActivityGlobalAbstract extends AppCompatActivity implement
 
     private BehaviorSubject<Status> lifeCycleObservable = BehaviorSubject.create();
     private CoordinatesView coordinatesView;
-    public ContentLoadingProgressBar progressBar;
-    private FirebaseAnalytics mFirebaseAnalytics;
+    private ContentLoadingProgressBar progressBar;
+
+    public ContentLoadingProgressBar getProgressBar() {
+        return progressBar;
+    }
 
     private BroadcastReceiver syncReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
-            if (intent.getAction() != null && intent.getAction().equals("action_sync")) {
-                if (intent.getExtras() != null) {
-                    if (progressBar != null)
-                        if (SyncUtils.isSyncRunning() && progressBar.getVisibility() == View.GONE)
-                            progressBar.setVisibility(View.VISIBLE);
-                        else if (!SyncUtils.isSyncRunning())
-                            progressBar.setVisibility(View.GONE);
-                }
-
-            }
+            if (intent.getAction() != null && intent.getAction().equals("action_sync") && intent.getExtras() != null && progressBar != null)
+                if (SyncUtils.isSyncRunning() && progressBar.getVisibility() == View.GONE)
+                    progressBar.setVisibility(View.VISIBLE);
+                else if (!SyncUtils.isSyncRunning())
+                    progressBar.setVisibility(View.GONE);
         }
     };
 
@@ -94,7 +92,7 @@ public abstract class ActivityGlobalAbstract extends AppCompatActivity implement
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
-        mFirebaseAnalytics = FirebaseAnalytics.getInstance(this);
+        FirebaseAnalytics mFirebaseAnalytics = FirebaseAnalytics.getInstance(this);
 
         if (!getResources().getBoolean(R.bool.is_tablet))
             setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT);
@@ -106,9 +104,14 @@ public abstract class ActivityGlobalAbstract extends AppCompatActivity implement
             prefs.edit().remove(Constants.PROGRAM_THEME).apply();
         }
 
-        setTheme(prefs.getInt(Constants.PROGRAM_THEME, prefs.getInt(Constants.THEME, R.style.AppTheme)));
+        if (!(this instanceof SplashActivity))
+            setTheme(prefs.getInt(Constants.PROGRAM_THEME, prefs.getInt(Constants.THEME, R.style.AppTheme)));
 
         Crashlytics.setString(Constants.SERVER, prefs.getString(Constants.SERVER, null));
+        String userName = prefs.getString(Constants.USER, null);
+        if (userName != null)
+            Crashlytics.setString(Constants.USER, userName);
+        mFirebaseAnalytics.setUserId(prefs.getString(Constants.SERVER, null));
 
         super.onCreate(savedInstanceState);
 
@@ -164,7 +167,7 @@ public abstract class ActivityGlobalAbstract extends AppCompatActivity implement
                 }
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            Timber.e(e);
         }
         popupMenu.getMenuInflater().inflate(R.menu.home_menu, popupMenu.getMenu());
         popupMenu.setOnMenuItemClickListener(item -> {
@@ -291,12 +294,42 @@ public abstract class ActivityGlobalAbstract extends AppCompatActivity implement
             //TITLE
             final View titleView = LayoutInflater.from(getActivity()).inflate(R.layout.dialog_title, null);
             ((TextView) titleView.findViewById(R.id.dialogTitle)).setText(title);
-            int colorPrimary = ColorUtils.getPrimaryColor(getActivity(), ColorUtils.ColorType.PRIMARY);
             alertDialog.setCustomTitle(titleView);
 
             //BODY
             final View msgView = LayoutInflater.from(getActivity()).inflate(R.layout.dialog_body, null);
             ((TextView) msgView.findViewById(R.id.dialogBody)).setText(message);
+            msgView.findViewById(R.id.dialogAccept).setOnClickListener(view -> {
+                clickListener.onPossitiveClick(alertDialog);
+                alertDialog.dismiss();
+            });
+            msgView.findViewById(R.id.dialogCancel).setOnClickListener(view -> {
+                clickListener.onNegativeClick(alertDialog);
+                alertDialog.dismiss();
+            });
+            alertDialog.setView(msgView);
+
+            return alertDialog;
+
+        } else
+            return null;
+    }
+
+    @Override
+    public AlertDialog showInfoDialog(String title, String message, String positiveButtonText, String negativeButtonText, OnDialogClickListener clickListener) {
+        if (getActivity() != null) {
+            AlertDialog alertDialog = new AlertDialog.Builder(getActivity()).create();
+
+            //TITLE
+            final View titleView = LayoutInflater.from(getActivity()).inflate(R.layout.dialog_title, null);
+            ((TextView) titleView.findViewById(R.id.dialogTitle)).setText(title);
+            alertDialog.setCustomTitle(titleView);
+
+            //BODY
+            final View msgView = LayoutInflater.from(getActivity()).inflate(R.layout.dialog_body, null);
+            ((TextView) msgView.findViewById(R.id.dialogBody)).setText(message);
+            ((Button)msgView.findViewById(R.id.dialogAccept)).setText(positiveButtonText);
+            ((Button)msgView.findViewById(R.id.dialogCancel)).setText(negativeButtonText);
             msgView.findViewById(R.id.dialogAccept).setOnClickListener(view -> {
                 clickListener.onPossitiveClick(alertDialog);
                 alertDialog.dismiss();
@@ -321,13 +354,11 @@ public abstract class ActivityGlobalAbstract extends AppCompatActivity implement
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        switch (requestCode) {
-            case Constants.RQ_MAP_LOCATION_VIEW:
-                if (coordinatesView != null && resultCode == RESULT_OK && data.getExtras() != null) {
-                    coordinatesView.updateLocation(Double.valueOf(data.getStringExtra(MapSelectorActivity.LATITUDE)), Double.valueOf(data.getStringExtra(MapSelectorActivity.LONGITUDE)));
-                }
-                this.coordinatesView = null;
-                break;
+        if (requestCode == Constants.RQ_MAP_LOCATION_VIEW) {
+            if (coordinatesView != null && resultCode == RESULT_OK && data.getExtras() != null) {
+                coordinatesView.updateLocation(Double.valueOf(data.getStringExtra(MapSelectorActivity.LATITUDE)), Double.valueOf(data.getStringExtra(MapSelectorActivity.LONGITUDE)));
+            }
+            this.coordinatesView = null;
         }
         super.onActivityResult(requestCode, resultCode, data);
     }
@@ -346,12 +377,13 @@ public abstract class ActivityGlobalAbstract extends AppCompatActivity implement
     }
 
     protected int getPrimaryColor() {
-        TypedValue typedValue = new TypedValue();
-        TypedArray a = getContext().obtainStyledAttributes(typedValue.data, new int[]{R.attr.colorPrimary});
-        int color = a.getColor(0, 0);
-        a.recycle();
-        return color;
+        return ColorUtils.getPrimaryColor(this, ColorUtils.ColorType.PRIMARY);
     }
+
+    protected int getAccentColor() {
+        return ColorUtils.getPrimaryColor(this, ColorUtils.ColorType.ACCENT);
+    }
+
 
     public void setProgressBar(ContentLoadingProgressBar progressBar) {
         if (progressBar != null) {

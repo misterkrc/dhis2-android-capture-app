@@ -1,7 +1,6 @@
 package org.dhis2.usescases.eventsWithoutRegistration.eventCapture;
 
 import android.content.Context;
-import androidx.annotation.NonNull;
 
 import com.squareup.sqlbrite2.BriteDatabase;
 
@@ -14,8 +13,10 @@ import org.dhis2.data.forms.dataentry.DataValueStore;
 import org.dhis2.data.metadata.MetadataRepository;
 import org.dhis2.data.user.UserRepository;
 import org.dhis2.utils.RulesUtilsProvider;
+import org.hisp.dhis.android.core.D2;
 import org.hisp.dhis.rules.RuleExpressionEvaluator;
 
+import androidx.annotation.NonNull;
 import dagger.Module;
 import dagger.Provides;
 
@@ -42,15 +43,15 @@ public class EventCaptureModule {
                                                     @NonNull MetadataRepository metadataRepository,
                                                     @NonNull RulesUtilsProvider ruleUtils,
                                                     @NonNull DataEntryStore dataEntryStore) {
-        return new EventCapturePresenterImpl(eventUid,eventCaptureRepository, metadataRepository, ruleUtils, dataEntryStore);
+        return new EventCapturePresenterImpl(eventUid, eventCaptureRepository, metadataRepository, ruleUtils, dataEntryStore);
     }
 
     @Provides
     @PerActivity
     EventCaptureContract.EventCaptureRepository provideRepository(Context context,
                                                                   @NonNull BriteDatabase briteDatabase,
-                                                                  FormRepository formRepository) {
-        return new EventCaptureRepositoryImpl(context, briteDatabase, formRepository, eventUid);
+                                                                  FormRepository formRepository, D2 d2) {
+        return new EventCaptureRepositoryImpl(context, briteDatabase, formRepository, eventUid,d2);
     }
 
     @Provides
@@ -63,8 +64,9 @@ public class EventCaptureModule {
     @PerActivity
     FormRepository formRepository(@NonNull BriteDatabase briteDatabase,
                                   @NonNull RuleExpressionEvaluator evaluator,
-                                  @NonNull RulesRepository rulesRepository) {
-        return new EventRepository(briteDatabase, evaluator, rulesRepository, eventUid);
+                                  @NonNull RulesRepository rulesRepository,
+                                  @NonNull D2 d2) {
+        return new EventRepository(briteDatabase, evaluator, rulesRepository, eventUid,d2);
     }
 
     @Provides

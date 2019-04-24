@@ -1,19 +1,20 @@
 package org.dhis2.data.forms;
 
-import androidx.annotation.NonNull;
+import com.google.android.gms.maps.model.LatLng;
 
 import org.dhis2.data.forms.dataentry.fields.FieldViewModel;
 import org.dhis2.data.tuples.Pair;
 import org.dhis2.data.tuples.Trio;
-import com.google.android.gms.maps.model.LatLng;
-
 import org.hisp.dhis.android.core.category.CategoryComboModel;
 import org.hisp.dhis.android.core.category.CategoryOptionComboModel;
+import org.hisp.dhis.android.core.organisationunit.OrganisationUnit;
 import org.hisp.dhis.android.core.program.ProgramModel;
 import org.hisp.dhis.rules.RuleEngine;
 
 import java.util.List;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import io.reactivex.Flowable;
 import io.reactivex.Observable;
 import io.reactivex.functions.Consumer;
@@ -29,6 +30,8 @@ public interface FormRepository {
     Flowable<Pair<ProgramModel, String>> incidentDate();
 
     Flowable<ProgramModel> getAllowDatesInFuture();
+
+    Flowable<RuleEngine> restartRuleEngine();
 
     @NonNull
     Flowable<RuleEngine> ruleEngine();
@@ -51,10 +54,10 @@ public interface FormRepository {
     @NonNull
     Consumer<ReportStatus> storeReportStatus();
 
-    @NonNull
+    @Nullable
     Observable<Trio<String, String, String>> useFirstStageDuringRegistration();
 
-    @NonNull
+    @Nullable
     Observable<String> autoGenerateEvents(String enrollmentUid);
 
     @NonNull
@@ -71,9 +74,11 @@ public interface FormRepository {
     @NonNull
     Observable<String> getTrackedEntityInstanceUid();
 
-    Observable<Trio<Boolean,CategoryComboModel,List<CategoryOptionComboModel>>> getProgramCategoryCombo();
+    Observable<Trio<Boolean, CategoryComboModel, List<CategoryOptionComboModel>>> getProgramCategoryCombo();
 
     void saveCategoryOption(CategoryOptionComboModel selectedOption);
 
     Observable<Boolean> captureCoodinates();
+
+    Observable<OrganisationUnit> getOrgUnitDates();
 }
